@@ -1,4 +1,4 @@
-# My App
+# Prospect Map
 
 A template project for Flutter apps
 

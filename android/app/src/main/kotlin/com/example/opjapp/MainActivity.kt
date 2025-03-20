@@ -1,4 +1,4 @@
-package com.myapp.app
+package com.prospectmap.app
 
 import io.flutter.embedding.android.FlutterActivity
 

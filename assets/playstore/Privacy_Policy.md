@@ -1,9 +1,9 @@
 ## Privacy policy
 
-This policy concerns the #APPNAME# app for Android.
+This policy concerns the ProspectMap app for Android.
 
 This is an open source Android app developed by Clarisse Pivasset-Lerat, 
-the source code is available on [GitHub](https://github.com/LeratClarisse/opj_app) under the BSD-3-Clause license.
+the source code is available on [GitHub](https://github.com/LeratClarisse/ProspectMap) under the BSD-3-Clause license.
 
 I have not programmed this app to collect any personally identifiable information. 
 All datas (questions, documents) is stored on your device only, and can be simply erased by uninstalling the app.
