@@ -16,7 +16,7 @@ To use flutter_launcher_icons :
 - choose an image for the splashscreen
 - name it logo.png
 - put it in 'assets/icons'
-- use flutter pub run flutter_launcher_icons:main
+- use flutter pub run flutter_launcher_icons
 
 
 If **Cannot not find minSdk** error :
