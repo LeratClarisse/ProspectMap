@@ -5,6 +5,7 @@ import 'Presentation/app.dart';
 
 Future<void> main() async {
   await Hive.initFlutter();
+  await Hive.openBox<List<dynamic>>('rides');
   await Hive.openBox('settings');
   return runApp(const App());
 }

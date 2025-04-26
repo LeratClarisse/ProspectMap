@@ -29,132 +29,191 @@ class _HomeState extends State<Home> {
   int? _selectedRoadIndex;
   String _selectedRoadName = "No road selected";
   bool _isLoading = false;
+  late Box<List<dynamic>> ridesBox; // New box to save rides per road
 
   @override
   void initState() {
     super.initState();
+    ridesBox = Hive.box<List<dynamic>>('rides');
     _fetchRoads();
+  }
+
+  Future<void> _saveRideDate() async {
+    if (_selectedRoadIndex == null) return;
+
+    final String roadName = _roadData[_selectedRoadIndex!]['name'];
+
+    // Open a date picker
+    DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+
+    if (pickedDate == null) {
+      return; // User canceled
+    }
+
+    List<dynamic> existingDates = ridesBox.get(roadName, defaultValue: []) ?? [];
+
+    // Add the picked date
+    existingDates.add(pickedDate.toIso8601String());
+
+    // Sort dates descending
+    existingDates.sort((a, b) => DateTime.parse(b).compareTo(DateTime.parse(a)));
+
+    ridesBox.put(roadName, existingDates);
+
+    setState(() {}); // Refresh UI
+  }
+
+  void _confirmDeleteDate(BuildContext context, String date) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Ride Date'),
+        content: Text('Are you sure you want to delete $date?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() {
+        final List<dynamic> rideDates = ridesBox.get(_selectedRoadName, defaultValue: []) ?? [];
+        rideDates.removeWhere((d) => d.startsWith(date)); // Remove by date match
+        ridesBox.put(_selectedRoadName, rideDates);
+      });
+    }
   }
 
   // Function to fetch roads using Overpass API
   Future<void> _fetchRoads() async {
-  setState(() {
-    _isLoading = true;
-    _roadData = [];
-  });
+    setState(() {
+      _isLoading = true;
+      _roadData = [];
+    });
 
-  try {
-    String overpassQuery = """
+    try {
+      String overpassQuery = """
     [out:json][timeout:30][maxsize:1073741824];
     way["highway"]["name"]
         ($south,$west,$north,$east);
     out geom;
     """;
 
-    debugPrint('Fetching roads in area: $south,$west,$north,$east');
+      debugPrint('Fetching roads in area: $south,$west,$north,$east');
 
-    final response = await http.post(
-      Uri.parse('https://overpass-api.de/api/interpreter'),
-      body: overpassQuery,
-    );
+      final response = await http.post(
+        Uri.parse('https://overpass-api.de/api/interpreter'),
+        body: overpassQuery,
+      );
 
-    if (response.statusCode == 200) {
-      final data = json.decode(utf8.decode(response.bodyBytes));
+      if (response.statusCode == 200) {
+        final data = json.decode(utf8.decode(response.bodyBytes));
 
-      debugPrint('Received ${data['elements'].length} elements from Overpass API');
+        debugPrint('Received ${data['elements'].length} elements from Overpass API');
 
-      Map<String, List<List<Map<String, dynamic>>>> roadGroups = {};
+        Map<String, List<List<Map<String, dynamic>>>> roadGroups = {};
 
-      for (var element in data['elements']) {
-        if (element['type'] == 'way' && element['geometry'] != null && element['geometry'].length > 1 && element['tags']?['name'] != null) {
-          List<LatLng> points = [];
-          for (var node in element['geometry']) {
-            points.add(LatLng(node['lat'], node['lon']));
-          }
+        for (var element in data['elements']) {
+          if (element['type'] == 'way' && element['geometry'] != null && element['geometry'].length > 1 && element['tags']?['name'] != null) {
+            List<LatLng> points = [];
+            for (var node in element['geometry']) {
+              points.add(LatLng(node['lat'], node['lon']));
+            }
 
-          if (points.length >= 2) {
-            String roadName = element['tags']['name'];
+            if (points.length >= 2) {
+              String roadName = element['tags']['name'];
 
-            // Initialize the list for this road name if it doesn't exist
-            roadGroups.putIfAbsent(roadName, () => []);
+              // Initialize the list for this road name if it doesn't exist
+              roadGroups.putIfAbsent(roadName, () => []);
 
-            bool added = false;
-            for (var group in roadGroups[roadName]!) {
-              if (_areSegmentsConnected(group, points)) {
-                group.add({
-                  'id': element['id'],
-                  'points': points,
-                  'tags': element['tags'] ?? {},
-                });
-                added = true;
-                break;
+              bool added = false;
+              for (var group in roadGroups[roadName]!) {
+                if (_areSegmentsConnected(group, points)) {
+                  group.add({
+                    'id': element['id'],
+                    'points': points,
+                    'tags': element['tags'] ?? {},
+                  });
+                  added = true;
+                  break;
+                }
+              }
+
+              // If no existing group was a match, create a new one
+              if (!added) {
+                roadGroups[roadName]!.add([
+                  {
+                    'id': element['id'],
+                    'points': points,
+                    'tags': element['tags'] ?? {},
+                  }
+                ]);
               }
             }
-
-            // If no existing group was a match, create a new one
-            if (!added) {
-              roadGroups[roadName]!.add([
-                {
-                  'id': element['id'],
-                  'points': points,
-                  'tags': element['tags'] ?? {},
-                }
-              ]);
-            }
           }
         }
-      }
 
-      // Flatten roadGroups into the final roadData structure
-      List<Map<String, dynamic>> consolidatedRoads = [];
+        // Flatten roadGroups into the final roadData structure
+        List<Map<String, dynamic>> consolidatedRoads = [];
 
-      roadGroups.forEach((roadName, groups) {
-        for (var group in groups) {
-          consolidatedRoads.add({
-            'name': roadName,
-            'segments': group,
-          });
+        roadGroups.forEach((roadName, groups) {
+          for (var group in groups) {
+            consolidatedRoads.add({
+              'name': roadName,
+              'segments': group,
+            });
+          }
+        });
+
+        setState(() {
+          _roadData = consolidatedRoads;
+          _isLoading = false;
+        });
+
+        debugPrint('Processed ${consolidatedRoads.length} unique grouped roads');
+        for (var road in consolidatedRoads) {
+          debugPrint('Road: ${road['name']} with ${road['segments'].length} segments');
         }
-      });
-
-      setState(() {
-        _roadData = consolidatedRoads;
-        _isLoading = false;
-      });
-
-      debugPrint('Processed ${consolidatedRoads.length} unique grouped roads');
-      for (var road in consolidatedRoads) {
-        debugPrint('Road: ${road['name']} with ${road['segments'].length} segments');
+      } else {
+        debugPrint('Error response from Overpass API: ${response.statusCode}');
+        setState(() {
+          _isLoading = false;
+        });
       }
-    } else {
-      debugPrint('Error response from Overpass API: ${response.statusCode}');
+    } catch (e) {
+      debugPrint('Error fetching roads: $e');
       setState(() {
         _isLoading = false;
       });
     }
-  } catch (e) {
-    debugPrint('Error fetching roads: $e');
-    setState(() {
-      _isLoading = false;
-    });
   }
-}
 
+  bool _areSegmentsConnected(List<Map<String, dynamic>> group, List<LatLng> newSegment) {
+    for (var segment in group) {
+      List<LatLng> existingPoints = segment['points'];
 
-bool _areSegmentsConnected(List<Map<String, dynamic>> group, List<LatLng> newSegment) {
-  for (var segment in group) {
-    List<LatLng> existingPoints = segment['points'];
-
-    // Check if the new segment shares a start or end point with any existing segment
-    if (existingPoints.first == newSegment.first ||
-        existingPoints.first == newSegment.last ||
-        existingPoints.last == newSegment.first ||
-        existingPoints.last == newSegment.last) {
-      return true;
+      // Check if the new segment shares a start or end point with any existing segment
+      if (existingPoints.first == newSegment.first ||
+          existingPoints.first == newSegment.last ||
+          existingPoints.last == newSegment.first ||
+          existingPoints.last == newSegment.last) {
+        return true;
+      }
     }
+    return false;
   }
-  return false;
-}
 
   // Handle tap on map
 // Handle tap on map
@@ -213,7 +272,8 @@ bool _areSegmentsConnected(List<Map<String, dynamic>> group, List<LatLng> newSeg
       });
       roadTapped = true;
     } else {
-      debugPrint('No road selected. Closest road is ${closestRoadIndex >= 0 ? _roadData[closestRoadIndex]['name'] : 'none'} at distance $closestDistance');
+      debugPrint(
+          'No road selected. Closest road is ${closestRoadIndex >= 0 ? _roadData[closestRoadIndex]['name'] : 'none'} at distance $closestDistance');
     }
 
     // If no road was tapped and we're not clicking on UI elements
@@ -349,54 +409,87 @@ bool _areSegmentsConnected(List<Map<String, dynamic>> group, List<LatLng> newSeg
             right: 20,
             bottom: 80,
             child: Container(
-              height: 60,
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black,
-                    spreadRadius: 1,
-                    blurRadius: 3,
-                    offset: const Offset(0, 2),
+                    color: Colors.black26,
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
                   ),
                 ],
               ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Selected Road:',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          Text(
-                            _selectedRoadName,
-                            style: const TextStyle(fontSize: 16),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _selectedRoadIndex = null;
-                          _selectedRoadSegments = [];
-                          _selectedRoadName = "No road selected";
-                        });
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Selected Road:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    _selectedRoadName,
+                    style: const TextStyle(fontSize: 16),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: _selectedRoadIndex != null ? _saveRideDate : null,
+                    child: const Text('Save Ride Date'),
+                  ),
+                  const SizedBox(height: 8),
+                  if (_selectedRoadName != "No road selected")
+                    Builder(
+                      builder: (context) {
+                        final List<dynamic> rideDates = ridesBox.get(_selectedRoadName, defaultValue: []) ?? [];
+                        if (rideDates.isEmpty) {
+                          return const Text('No rides yet.');
+                        }
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Ride Dates:', style: TextStyle(fontWeight: FontWeight.bold)),
+                            ...rideDates.map((date) {
+                              final d = DateTime.parse(date);
+                              final formattedDate = d.toLocal().toString().split(' ')[0];
+                              return GestureDetector(
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(vertical: 4),
+                                  padding: const EdgeInsets.all(8),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        formattedDate,
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete, color: Colors.red),
+                                        onPressed: () {
+                                          _confirmDeleteDate(context, formattedDate);
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }),
+                          ],
+                        );
                       },
-                      child: const Text('Clear'),
                     ),
-                  ],
-                ),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _selectedRoadIndex = null;
+                        _selectedRoadSegments = [];
+                        _selectedRoadName = "No road selected";
+                      });
+                    },
+                    child: const Text('Clear'),
+                  ),
+                ],
               ),
             ),
           ),
