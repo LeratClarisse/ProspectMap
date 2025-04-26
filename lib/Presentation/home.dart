@@ -38,6 +38,24 @@ class _HomeState extends State<Home> {
     _fetchRoads();
   }
 
+  Color getColorBasedOnLastRideDate(String roadName) {
+    final List<dynamic> rideDates = ridesBox.get(roadName, defaultValue: []) ?? [];
+    if (rideDates.isEmpty) {
+      return Colors.red; // default color if no ride
+    }
+    rideDates.sort(); // make sure dates are sorted
+    final lastRideDate = DateTime.parse(rideDates.last);
+    final daysSince = DateTime.now().difference(lastRideDate).inDays;
+
+    if (daysSince <= 30) {
+      return Colors.green;
+    } else if (daysSince <= 60) {
+      return Colors.orange;
+    } else {
+      return Colors.red;
+    }
+  }
+
   Future<void> _saveRideDate() async {
     if (_selectedRoadIndex == null) return;
 
@@ -65,7 +83,9 @@ class _HomeState extends State<Home> {
 
     ridesBox.put(roadName, existingDates);
 
-    setState(() {}); // Refresh UI
+    setState(() {
+      _updateSelectedRoadColor();
+    });
   }
 
   void _confirmDeleteDate(BuildContext context, String date) async {
@@ -92,6 +112,8 @@ class _HomeState extends State<Home> {
         final List<dynamic> rideDates = ridesBox.get(_selectedRoadName, defaultValue: []) ?? [];
         rideDates.removeWhere((d) => d.startsWith(date)); // Remove by date match
         ridesBox.put(_selectedRoadName, rideDates);
+
+        _updateSelectedRoadColor();
       });
     }
   }
@@ -215,6 +237,25 @@ class _HomeState extends State<Home> {
     return false;
   }
 
+  void _buildSelectedRoadSegments() {
+    if (_selectedRoadIndex != null) {
+      final selectedRoad = _roadData[_selectedRoadIndex!];
+      _selectedRoadSegments = selectedRoad['segments'].map<Polyline>((segment) {
+        return Polyline(
+          points: segment['points'],
+          strokeWidth: 4.0,
+          color: getColorBasedOnLastRideDate(_selectedRoadName),
+          borderColor: Colors.black,
+          borderStrokeWidth: 0.5,
+        );
+      }).toList();
+    }
+  }
+
+  void _updateSelectedRoadColor() {
+    _buildSelectedRoadSegments();
+  }
+
   // Handle tap on map
 // Handle tap on map
   void _handleTap(TapPosition tapPosition, LatLng point) {
@@ -224,7 +265,6 @@ class _HomeState extends State<Home> {
     }
 
     // Check if tap is near any road
-    bool roadTapped = false;
     double closestDistance = double.infinity;
     int closestRoadIndex = -1;
 
@@ -257,37 +297,12 @@ class _HomeState extends State<Home> {
 
       setState(() {
         _selectedRoadIndex = closestRoadIndex;
-        _selectedRoadName = selectedRoad['name'];
-
-        // Create polylines for all segments of this road
-        _selectedRoadSegments = selectedRoad['segments'].map<Polyline>((segment) {
-          return Polyline(
-            points: segment['points'],
-            strokeWidth: 4.0,
-            color: Colors.red,
-            borderColor: Colors.black,
-            borderStrokeWidth: 0.5,
-          );
-        }).toList();
+        _selectedRoadName = _roadData[closestRoadIndex]['name'];
+        _buildSelectedRoadSegments();
       });
-      roadTapped = true;
     } else {
       debugPrint(
           'No road selected. Closest road is ${closestRoadIndex >= 0 ? _roadData[closestRoadIndex]['name'] : 'none'} at distance $closestDistance');
-    }
-
-    // If no road was tapped and we're not clicking on UI elements
-    if (!roadTapped) {
-      setState(() {
-        _markers.add(
-          Marker(
-            width: 80.0,
-            height: 80.0,
-            point: point,
-            child: const Icon(Icons.location_on, color: Colors.red),
-          ),
-        );
-      });
     }
   }
 
@@ -449,29 +464,23 @@ class _HomeState extends State<Home> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text('Ride Dates:', style: TextStyle(fontWeight: FontWeight.bold)),
-                            ...rideDates.map((date) {
+                            ...(rideDates..sort((a, b) => b.compareTo(a))).map((date) {
                               final d = DateTime.parse(date);
                               final formattedDate = d.toLocal().toString().split(' ')[0];
-                              return GestureDetector(
-                                child: Container(
-                                  margin: const EdgeInsets.symmetric(vertical: 4),
-                                  padding: const EdgeInsets.all(8),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        formattedDate,
-                                        style: const TextStyle(fontSize: 14),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.delete, color: Colors.red),
-                                        onPressed: () {
-                                          _confirmDeleteDate(context, formattedDate);
-                                        },
-                                      ),
-                                    ],
+                              return Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    formattedDate,
+                                    style: const TextStyle(fontSize: 14),
                                   ),
-                                ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    onPressed: () {
+                                      _confirmDeleteDate(context, formattedDate);
+                                    },
+                                  ),
+                                ],
                               );
                             }),
                           ],
