@@ -23,16 +23,17 @@ class _HomeState extends State<Home> {
   final double east = 7.0300;
   final double west = 6.8900;
 
-  final List<Marker> _markers = [];
   List<Map<String, dynamic>> _roadData = []; // Store raw road data
   List<Polyline> _selectedRoadSegments = [];
   int? _selectedRoadIndex;
-  String _selectedRoadName = "No road selected";
+  final String _noRoadSelectedString = "Aucune route sélectionnée";
+  String _selectedRoadName = "";
   bool _isLoading = false;
   late Box<List<dynamic>> ridesBox; // New box to save rides per road
 
   @override
   void initState() {
+    _selectedRoadName = _noRoadSelectedString;
     super.initState();
     ridesBox = Hive.box<List<dynamic>>('rides');
     _fetchRoads();
@@ -92,16 +93,16 @@ class _HomeState extends State<Home> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Ride Date'),
-        content: Text('Are you sure you want to delete $date?'),
+        title: const Text('Supprime la date'),
+        content: Text('Voulez-vous supprimer la date de passage $date ?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: const Text('Annuler'),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -133,8 +134,6 @@ class _HomeState extends State<Home> {
     out geom;
     """;
 
-      debugPrint('Fetching roads in area: $south,$west,$north,$east');
-
       final response = await http.post(
         Uri.parse('https://overpass-api.de/api/interpreter'),
         body: overpassQuery,
@@ -142,8 +141,6 @@ class _HomeState extends State<Home> {
 
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
-
-        debugPrint('Received ${data['elements'].length} elements from Overpass API');
 
         Map<String, List<List<Map<String, dynamic>>>> roadGroups = {};
 
@@ -203,19 +200,12 @@ class _HomeState extends State<Home> {
           _roadData = consolidatedRoads;
           _isLoading = false;
         });
-
-        debugPrint('Processed ${consolidatedRoads.length} unique grouped roads');
-        for (var road in consolidatedRoads) {
-          debugPrint('Road: ${road['name']} with ${road['segments'].length} segments');
-        }
       } else {
-        debugPrint('Error response from Overpass API: ${response.statusCode}');
         setState(() {
           _isLoading = false;
         });
       }
     } catch (e) {
-      debugPrint('Error fetching roads: $e');
       setState(() {
         _isLoading = false;
       });
@@ -292,17 +282,11 @@ class _HomeState extends State<Home> {
     final distanceThreshold = 0.0002; // Adjust this value as needed
 
     if (closestRoadIndex >= 0 && closestDistance < distanceThreshold) {
-      final selectedRoad = _roadData[closestRoadIndex];
-      debugPrint('Selected road: ${selectedRoad['name']} with distance: $closestDistance');
-
       setState(() {
         _selectedRoadIndex = closestRoadIndex;
         _selectedRoadName = _roadData[closestRoadIndex]['name'];
         _buildSelectedRoadSegments();
       });
-    } else {
-      debugPrint(
-          'No road selected. Closest road is ${closestRoadIndex >= 0 ? _roadData[closestRoadIndex]['name'] : 'none'} at distance $closestDistance');
     }
   }
 
@@ -363,12 +347,10 @@ class _HomeState extends State<Home> {
 
   @override
   Widget build(BuildContext context) {
-    Box settingsBox = Hive.box('settings');
-
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: const Text('Map of Croix'),
+        title: const Text('Prospect Map'),
       ),
       body: Stack(
         children: [
@@ -392,30 +374,13 @@ class _HomeState extends State<Home> {
                 userAgentPackageName: 'com.example.app',
                 tileProvider: NetworkTileProvider(
                   headers: {
-                    'User-Agent': 'Croix-Map-App/1.0',
+                    'User-Agent': 'ProspectMap-App/1.0',
                   },
                 ),
                 keepBuffer: 2,
               ),
               // Show all segments of the selected road
-              if (_selectedRoadSegments.isNotEmpty) PolylineLayer(polylines: _selectedRoadSegments),
-              MarkerLayer(markers: _markers),
-              // Boundary rectangle
-              PolygonLayer(
-                polygons: [
-                  Polygon(
-                    points: [
-                      LatLng(south, west),
-                      LatLng(south, east),
-                      LatLng(north, east),
-                      LatLng(north, west),
-                    ],
-                    color: Colors.transparent,
-                    borderColor: Colors.red,
-                    borderStrokeWidth: 1.5,
-                  ),
-                ],
-              ),
+              if (_selectedRoadSegments.isNotEmpty) PolylineLayer(polylines: _selectedRoadSegments)
             ],
           ),
           // Info panel in the lower third of the screen
@@ -440,7 +405,6 @@ class _HomeState extends State<Home> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Selected Road:', style: TextStyle(fontWeight: FontWeight.bold)),
                   Text(
                     _selectedRoadName,
                     style: const TextStyle(fontSize: 16),
@@ -450,40 +414,49 @@ class _HomeState extends State<Home> {
                   const SizedBox(height: 8),
                   ElevatedButton(
                     onPressed: _selectedRoadIndex != null ? _saveRideDate : null,
-                    child: const Text('Save Ride Date'),
+                    child: const Text('Ajouter une date de passage'),
                   ),
                   const SizedBox(height: 8),
-                  if (_selectedRoadName != "No road selected")
+                  if (_selectedRoadName != _noRoadSelectedString)
                     Builder(
                       builder: (context) {
                         final List<dynamic> rideDates = ridesBox.get(_selectedRoadName, defaultValue: []) ?? [];
                         if (rideDates.isEmpty) {
-                          return const Text('No rides yet.');
+                          return const SizedBox.shrink();
                         }
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Ride Dates:', style: TextStyle(fontWeight: FontWeight.bold)),
-                            ...(rideDates..sort((a, b) => b.compareTo(a))).map((date) {
-                              final d = DateTime.parse(date);
-                              final formattedDate = d.toLocal().toString().split(' ')[0];
-                              return Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    formattedDate,
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete, color: Colors.red),
-                                    onPressed: () {
-                                      _confirmDeleteDate(context, formattedDate);
-                                    },
-                                  ),
-                                ],
-                              );
-                            }),
-                          ],
+                        return Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Dates de passage :', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxHeight: 110),
+                                child: ListView(
+                                  shrinkWrap: true,
+                                  children: (rideDates..sort((a, b) => b.compareTo(a))).map((date) {
+                                    final d = DateTime.parse(date);
+                                    final formattedDate = d.toLocal().toString().split(' ')[0];
+                                    return Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          formattedDate,
+                                          style: const TextStyle(fontSize: 14),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete, color: Colors.red),
+                                          onPressed: () {
+                                            _confirmDeleteDate(context, formattedDate);
+                                          },
+                                        ),
+                                      ],
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ],
+                          ),
                         );
                       },
                     ),
@@ -493,10 +466,10 @@ class _HomeState extends State<Home> {
                       setState(() {
                         _selectedRoadIndex = null;
                         _selectedRoadSegments = [];
-                        _selectedRoadName = "No road selected";
+                        _selectedRoadName = _noRoadSelectedString;
                       });
                     },
-                    child: const Text('Clear'),
+                    child: const Text('Désélectionner'),
                   ),
                 ],
               ),
@@ -506,42 +479,6 @@ class _HomeState extends State<Home> {
             const Center(
               child: CircularProgressIndicator(),
             ),
-          Positioned(
-            bottom: 16.0,
-            right: 16.0,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                ElevatedButton(
-                  onPressed: () {
-                    _mapController.move(_center, 15.0);
-                  },
-                  child: const Text('Reset View'),
-                ),
-                const SizedBox(height: 8),
-                ValueListenableBuilder<Box>(
-                  valueListenable: settingsBox.listenable(),
-                  builder: (context, box, widget) {
-                    return Row(
-                      children: [
-                        Container(
-                          color: Colors.white70,
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                          child: const Text('Dark Mode'),
-                        ),
-                        Switch(
-                          value: box.get('darkmode', defaultValue: false),
-                          onChanged: (val) {
-                            settingsBox.put('darkmode', val);
-                          },
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
