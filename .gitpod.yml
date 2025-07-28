@@ -2,9 +2,9 @@ image:
   file: .gitpod.dockerfile
 
 tasks:
-  - name: Set up Flutter Web
+  - name: Setup & Run Flutter Web
     init: flutter pub get
-    command: flutter run -d chrome --web-port=3000
+    command: flutter run -d web-server --web-port=3000 --release
 
 ports:
   - port: 3000
