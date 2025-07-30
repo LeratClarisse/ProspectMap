@@ -33,10 +33,6 @@ jobs:
           
       # Decoding base64 key into a file
       - run: echo "${{ secrets.KEYSTORE2 }}" | base64 --decode > android/app/key.jks
-
-
-      - run: ls -R android/app
-      - run: cat ${{ env.PROPERTIES_PATH }}
       
       # Get dependencies and make assigned appbundle
       - run: | 
