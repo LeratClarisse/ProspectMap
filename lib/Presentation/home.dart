@@ -9,10 +9,10 @@ class Home extends StatefulWidget {
   const Home({Key? key}) : super(key: key);
 
   @override
-  _HomeState createState() => _HomeState();
+  HomeState createState() => HomeState();
 }
 
-class _HomeState extends State<Home> {
+class HomeState extends State<Home> {
   final MapController _mapController = MapController();
 
   // Coordinates for Croix
@@ -145,7 +145,10 @@ class _HomeState extends State<Home> {
         Map<String, List<List<Map<String, dynamic>>>> roadGroups = {};
 
         for (var element in data['elements']) {
-          if (element['type'] == 'way' && element['geometry'] != null && element['geometry'].length > 1 && element['tags']?['name'] != null) {
+          if (element['type'] == 'way' &&
+              element['geometry'] != null &&
+              element['geometry'].length > 1 &&
+              element['tags']?['name'] != null) {
             List<LatLng> points = [];
             for (var node in element['geometry']) {
               points.add(LatLng(node['lat'], node['lon']));
