@@ -6,8 +6,8 @@ on:
       - main
 
 env:
-  JAVA_VERSION: "11.x"
-  FLUTTER_CHANNEL: "beta"
+  JAVA_VERSION: "17"
+  FLUTTER_CHANNEL: "stable"
   PROPERTIES_PATH: "./android/key.properties"
 
 jobs:
@@ -26,12 +26,18 @@ jobs:
 
       # Creating the key.properties file
       - run: |
-          echo keyPassword=\${{ secrets.KEY_STORE }} > ${{env.PROPERTIES_PATH}}
-          echo storePassword=\${{ secrets.KEY_PASSWORD }} >> ${{env.PROPERTIES_PATH}}
-          echo keyAlias=\${{ secrets.KEY_ALIAS }} >> ${{env.PROPERTIES_PATH}}
+          echo keyPassword=${{ secrets.KEY_STORE }} > ${{ env.PROPERTIES_PATH }}
+          echo storePassword=${{ secrets.KEY_PASSWORD }} >> ${{ env.PROPERTIES_PATH }}
+          echo keyAlias=${{ secrets.KEY_ALIAS }} >> ${{ env.PROPERTIES_PATH }}
+          echo storeFile=key.jks >> ${{ env.PROPERTIES_PATH }}
+          
       # Decoding base64 key into a file
       - run: echo "${{ secrets.KEYSTORE2 }}" | base64 --decode > android/app/key.jks
 
+
+      - run: ls -R android/app
+      - run: cat ${{ env.PROPERTIES_PATH }}
+      
       # Get dependencies and make assigned appbundle
       - run: | 
           flutter clean
@@ -41,7 +47,8 @@ jobs:
           
       # Make appbundle downloadable
       - name: Upload artefato
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: appbundle
-          path: build/app/outputs/bundle/release
+          path: |
+            build/app/outputs/bundle/release/*.aab
