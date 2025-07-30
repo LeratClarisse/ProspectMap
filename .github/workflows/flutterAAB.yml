@@ -24,6 +24,8 @@ jobs:
         with:
           channel: ${{env.FLUTTER_CHANNEL}}
 
+      - run: ls -R android/app
+      - run: cat ${{ env.PROPERTIES_PATH }}
       # Creating the key.properties file
       - run: |
           echo keyPassword=${{ secrets.KEY_STORE }} > ${{ env.PROPERTIES_PATH }}
