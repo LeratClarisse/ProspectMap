@@ -4,7 +4,7 @@ image:
 tasks:
   - name: Setup & Run Flutter Web
     init: flutter pub get
-    command: flutter run -d web-server --web-port=3000 --release
+    command: flutter pub get
 
 ports:
   - port: 3000
