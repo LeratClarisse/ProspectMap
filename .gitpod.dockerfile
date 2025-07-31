@@ -13,8 +13,3 @@ USER gitpod
 
 # Install Flutter (latest stable)
 RUN git clone https://github.com/flutter/flutter.git -b stable $HOME/flutter
-
-# Enable Flutter web
-RUN flutter config --enable-web \
-    && flutter precache \
-    && flutter doctor
