@@ -1,0 +1,38 @@
+name: Auto Version Bump
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # needed to check tags and history
+
+      - name: Bump version in pubspec.yaml
+        id: bump
+        run: |
+          # (Insert semantic version bump script here, similar to what I gave earlier)
+          # For example:
+          version_line=$(grep '^version:' pubspec.yaml)
+          raw_version=$(echo "$version_line" | cut -d' ' -f2)
+          base_version=$(echo "$raw_version" | cut -d'+' -f1)
+          build_number=$(echo "$raw_version" | cut -d'+' -f2)
+          build_number=${build_number:-0}
+          new_build=$((build_number + 1))
+          sed -i "s/^version:.*/version: $base_version+$new_build/" pubspec.yaml
+          echo "version=$base_version" >> $GITHUB_OUTPUT
+          echo "build=$new_build" >> $GITHUB_OUTPUT
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add pubspec.yaml
+          git commit -m "ci: bump build number to ${{ steps.bump.outputs.build }}"
+          git push
+        # add `if: github.ref == 'refs/heads/main'` if needed
