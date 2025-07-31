@@ -63,7 +63,7 @@ jobs:
       # Generate Changelog from Conventional Commits
       - name: Generate changelog
         id: changelog
-        uses: mikeal/conventional-changelog-action@v2
+        uses: mikeal/conventional-changelog-action@v1
         with:
           tagPrefix: "v"
           preset: "angular"
@@ -71,7 +71,7 @@ jobs:
 
       # Create GitHub Release with tag and changelog
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@<commit_sha>
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: Release v${{ steps.version.outputs.version }}
