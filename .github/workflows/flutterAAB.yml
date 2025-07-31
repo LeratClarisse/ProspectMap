@@ -60,18 +60,9 @@ jobs:
           path: |
             build/app/outputs/bundle/release/*.aab
 
-      # Generate Changelog from Conventional Commits
-      - name: Generate changelog
-        id: changelog
-        uses: mikeal/conventional-changelog-action@v1
-        with:
-          tagPrefix: "v"
-          preset: "angular"
-          releaseCount: 1
-
       # Create GitHub Release with tag and changelog
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@<commit_sha>
+        uses: softprops/action-gh-release@v2.3.2
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: Release v${{ steps.version.outputs.version }}
