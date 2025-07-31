@@ -13,26 +13,57 @@ jobs:
         with:
           fetch-depth: 0  # needed to check tags and history
 
-      - name: Bump version in pubspec.yaml
+      - name: Bump version in pubspec.yaml (semantic)
         id: bump
         run: |
-          # (Insert semantic version bump script here, similar to what I gave earlier)
-          # For example:
+          # Get latest version from tags or fallback to 0.1.0+0
+          last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0")
+          version=$(echo "$last_tag" | sed 's/^v//')
+          major=$(echo "$version" | cut -d. -f1)
+          minor=$(echo "$version" | cut -d. -f2)
+          patch=$(echo "$version" | cut -d. -f3)
+
+          # Get commits since last tag
+          commits=$(git log $last_tag..HEAD --pretty=format:"%s")
+
+          # Determine bump type
+          bump="patch"
+          echo "$commits" | grep -qE 'BREAKING CHANGE|!:' && bump="major"
+          echo "$commits" | grep -qE '^feat(\(.+\))?: ' && [ "$bump" != "major" ] && bump="minor"
+
+          # Apply bump
+          if [ "$bump" = "major" ]; then
+            major=$((major + 1))
+            minor=0
+            patch=0
+          elif [ "$bump" = "minor" ]; then
+            minor=$((minor + 1))
+            patch=0
+          else
+            patch=$((patch + 1))
+          fi
+
+          new_version="${major}.${minor}.${patch}"
+
+          # Extract current build number from pubspec.yaml
           version_line=$(grep '^version:' pubspec.yaml)
           raw_version=$(echo "$version_line" | cut -d' ' -f2)
-          base_version=$(echo "$raw_version" | cut -d'+' -f1)
-          build_number=$(echo "$raw_version" | cut -d'+' -f2)
-          build_number=${build_number:-0}
-          new_build=$((build_number + 1))
-          sed -i "s/^version:.*/version: $base_version+$new_build/" pubspec.yaml
-          echo "version=$base_version" >> $GITHUB_OUTPUT
+          current_build=$(echo "$raw_version" | cut -d'+' -f2)
+          current_build=${current_build:-0}
+          new_build=$((current_build + 1))
+
+          # Update pubspec.yaml
+          echo "🔧 Updating to $new_version+$new_build"
+          sed -i "s/^version:.*/version: $new_version+$new_build/" pubspec.yaml
+
+          echo "version=$new_version" >> $GITHUB_OUTPUT
           echo "build=$new_build" >> $GITHUB_OUTPUT
+          echo "tag=v$new_version" >> $GITHUB_OUTPUT
 
       - name: Commit version bump
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add pubspec.yaml
-          git commit -m "ci: bump build number to ${{ steps.bump.outputs.build }}"
+          git commit -m "ci: bump version to ${{ steps.bump.outputs.version }}+${{ steps.bump.outputs.build }}"
           git push
-        # add `if: github.ref == 'refs/heads/main'` if needed
