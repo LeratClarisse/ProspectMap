@@ -1,9 +1,7 @@
 name: Flutter AAB
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 env:
   JAVA_VERSION: "17"
