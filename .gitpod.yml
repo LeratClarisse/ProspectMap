@@ -1,12 +1,6 @@
 image:
   file: .gitpod.dockerfile
 
-github:
-  prebuilds:
-    enabled: true
-    branches: true
-    pullRequests: true
-    
 tasks:
   - name: Setup Flutter Web
     init: |
