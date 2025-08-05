@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class Home extends StatefulWidget {
@@ -119,7 +118,7 @@ class HomeState extends State<Home> {
     }
   }
 
-  // Function to fetch roads using Overpass API
+  // Function to fetch roads using saved geojson
   Future<void> _fetchRoads() async {
     setState(() {
       _isLoading = true;
@@ -127,87 +126,63 @@ class HomeState extends State<Home> {
     });
 
     try {
-      String overpassQuery = """
-    [out:json][timeout:30][maxsize:1073741824];
-    way["highway"]["name"]
-        ($south,$west,$north,$east);
-    out geom;
-    """;
+      final geoJsonString = await DefaultAssetBundle.of(context).loadString('assets/db/doubs_belfort_hautesaone.geojson');
+      final geoJson = json.decode(geoJsonString);
 
-      final response = await http.post(
-        Uri.parse('https://overpass-api.de/api/interpreter'),
-        body: overpassQuery,
-      );
+      Map<String, List<List<Map<String, dynamic>>>> roadGroups = {};
 
-      if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
+      for (var feature in geoJson['features']) {
+        final geometry = feature['geometry'];
+        final properties = feature['properties'];
+        final name = properties['name'];
 
-        Map<String, List<List<Map<String, dynamic>>>> roadGroups = {};
+        if (geometry['type'] == 'LineString' && name != null) {
+          List<LatLng> points = [];
+          for (var coord in geometry['coordinates']) {
+            points.add(LatLng(coord[1], coord[0])); // GeoJSON is [lon, lat]
+          }
 
-        for (var element in data['elements']) {
-          if (element['type'] == 'way' &&
-              element['geometry'] != null &&
-              element['geometry'].length > 1 &&
-              element['tags']?['name'] != null) {
-            List<LatLng> points = [];
-            for (var node in element['geometry']) {
-              points.add(LatLng(node['lat'], node['lon']));
+          // Initialize road name group if needed
+          roadGroups.putIfAbsent(name, () => []);
+
+          bool added = false;
+          for (var group in roadGroups[name]!) {
+            if (_areSegmentsConnected(group, points)) {
+              group.add({
+                'points': points,
+                'tags': properties,
+              });
+              added = true;
+              break;
             }
+          }
 
-            if (points.length >= 2) {
-              String roadName = element['tags']['name'];
-
-              // Initialize the list for this road name if it doesn't exist
-              roadGroups.putIfAbsent(roadName, () => []);
-
-              bool added = false;
-              for (var group in roadGroups[roadName]!) {
-                if (_areSegmentsConnected(group, points)) {
-                  group.add({
-                    'id': element['id'],
-                    'points': points,
-                    'tags': element['tags'] ?? {},
-                  });
-                  added = true;
-                  break;
-                }
+          if (!added) {
+            roadGroups[name]!.add([
+              {
+                'points': points,
+                'tags': properties,
               }
-
-              // If no existing group was a match, create a new one
-              if (!added) {
-                roadGroups[roadName]!.add([
-                  {
-                    'id': element['id'],
-                    'points': points,
-                    'tags': element['tags'] ?? {},
-                  }
-                ]);
-              }
-            }
+            ]);
           }
         }
-
-        // Flatten roadGroups into the final roadData structure
-        List<Map<String, dynamic>> consolidatedRoads = [];
-
-        roadGroups.forEach((roadName, groups) {
-          for (var group in groups) {
-            consolidatedRoads.add({
-              'name': roadName,
-              'segments': group,
-            });
-          }
-        });
-
-        setState(() {
-          _roadData = consolidatedRoads;
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _isLoading = false;
-        });
       }
+
+      List<Map<String, dynamic>> consolidatedRoads = [];
+
+      roadGroups.forEach((name, groups) {
+        for (var group in groups) {
+          consolidatedRoads.add({
+            'name': name,
+            'segments': group,
+          });
+        }
+      });
+
+      setState(() {
+        _roadData = consolidatedRoads;
+        _isLoading = false;
+      });
     } catch (e) {
       setState(() {
         _isLoading = false;

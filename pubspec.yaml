@@ -29,7 +29,6 @@ dependencies:
   hive_flutter: ^1.1.0
   flutter_map: ^8.1.1
   latlong2: ^0.9.1
-  http: ^1.3.0
 
 dev_dependencies:
   # The "flutter_lints" package below contains a set of recommended lints to
@@ -53,7 +52,7 @@ flutter_native_splash:
 # The following section is specific to Flutter.
 flutter:
   assets:
-    - assets/db/
+    - assets/db/doubs_belfort_hautesaone.geojson
     - assets/icons/logo.png
 
   # The following line ensures that the Material Icons font is
