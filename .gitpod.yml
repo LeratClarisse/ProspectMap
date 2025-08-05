@@ -11,7 +11,8 @@ tasks:
       flutter pub get
     command: |
       export PATH="$HOME/flutter/bin:$PATH"
-
+      flutter run -d web-server --web-port=3000 --release
+      
 ports:
   - port: 3000
     onOpen: open-preview

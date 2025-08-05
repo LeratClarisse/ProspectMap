@@ -30,6 +30,8 @@ class HomeState extends State<Home> {
   bool _isLoading = false;
   late Box<List<dynamic>> ridesBox; // New box to save rides per road
   bool _isPanelExpanded = false;
+  bool _showColoredSegments = true;
+  List<Polyline> _coloredRoadSegments = [];
 
   @override
   void initState() {
@@ -37,6 +39,30 @@ class HomeState extends State<Home> {
     super.initState();
     ridesBox = Hive.box<List<dynamic>>('rides');
     _fetchRoads();
+  }
+
+  void _buildColoredRoadSegments() {
+    _coloredRoadSegments.clear();
+
+    for (var road in _roadData) {
+      final roadName = road['name'];
+      final rideDates = ridesBox.get(roadName, defaultValue: []) ?? [];
+      if (rideDates.isNotEmpty) {
+        // Road has at least one ride, add its colored segments
+        final color = getColorBasedOnLastRideDate(roadName);
+        for (var segment in road['segments']) {
+          _coloredRoadSegments.add(
+            Polyline(
+              points: segment['points'],
+              strokeWidth: 3.0,
+              color: color.withValues(alpha: 0.7),
+              borderColor: Colors.black,
+              borderStrokeWidth: 0.3,
+            ),
+          );
+        }
+      }
+    }
   }
 
   Color getColorBasedOnLastRideDate(String roadName) {
@@ -86,6 +112,7 @@ class HomeState extends State<Home> {
 
     setState(() {
       _updateSelectedRoadColor();
+      _buildColoredRoadSegments();
     });
   }
 
@@ -184,6 +211,8 @@ class HomeState extends State<Home> {
         _roadData = consolidatedRoads;
         _isLoading = false;
       });
+
+      _buildColoredRoadSegments();
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -261,10 +290,29 @@ class HomeState extends State<Home> {
     final distanceThreshold = 0.0002; // Adjust this value as needed
 
     if (closestRoadIndex >= 0 && closestDistance < distanceThreshold) {
+      if (_selectedRoadIndex == closestRoadIndex) {
+        // Tapped the same selected road -> deselect
+        setState(() {
+          _selectedRoadIndex = null;
+          _selectedRoadSegments = [];
+          _selectedRoadName = _noRoadSelectedString;
+          _isPanelExpanded = false;
+        });
+      } else {
+        // Select new road
+        setState(() {
+          _selectedRoadIndex = closestRoadIndex;
+          _selectedRoadName = _roadData[closestRoadIndex]['name'];
+          _buildSelectedRoadSegments();
+        });
+      }
+    } else {
+      // Tap outside any road -> deselect
       setState(() {
-        _selectedRoadIndex = closestRoadIndex;
-        _selectedRoadName = _roadData[closestRoadIndex]['name'];
-        _buildSelectedRoadSegments();
+        _selectedRoadIndex = null;
+        _selectedRoadSegments = [];
+        _selectedRoadName = _noRoadSelectedString;
+        _isPanelExpanded = false;
       });
     }
   }
@@ -358,6 +406,7 @@ class HomeState extends State<Home> {
                   ),
                   keepBuffer: 2,
                 ),
+                if (_showColoredSegments) PolylineLayer(polylines: _coloredRoadSegments),
                 if (_selectedRoadSegments.isNotEmpty) PolylineLayer(polylines: _selectedRoadSegments),
               ],
             ),
@@ -480,6 +529,18 @@ class HomeState extends State<Home> {
                   ),
                 ),
               ]),
+            Positioned(
+              bottom: 24,
+              left: 16,
+              child: Switch(
+                value: _showColoredSegments,
+                onChanged: (value) {
+                  setState(() {
+                    _showColoredSegments = value;
+                  });
+                },
+              ),
+            ),
             if (_isLoading) const Center(child: CircularProgressIndicator()),
           ],
         ));
