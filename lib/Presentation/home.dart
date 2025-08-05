@@ -29,6 +29,7 @@ class HomeState extends State<Home> {
   String _selectedRoadName = "";
   bool _isLoading = false;
   late Box<List<dynamic>> ridesBox; // New box to save rides per road
+  bool _isPanelExpanded = false;
 
   @override
   void initState() {
@@ -326,102 +327,95 @@ class HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: const Text('Prospect Map'),
-      ),
-      body: Stack(
-        children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _center,
-              initialZoom: 13.0,
-              onTap: _handleTap,
-              minZoom: 10.0,
-              maxZoom: 18.0,
-              interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.all,
-                enableMultiFingerGestureRace: true,
-              ),
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                subdomains: const ['a', 'b', 'c'],
-                userAgentPackageName: 'com.example.app',
-                tileProvider: NetworkTileProvider(
-                  headers: {
-                    'User-Agent': 'ProspectMap-App/1.0',
-                  },
+        appBar: AppBar(
+          centerTitle: true,
+          title: const Text('Prospect Map'),
+        ),
+        body: Stack(
+          children: [
+            FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: _center,
+                initialZoom: 13.0,
+                onTap: _handleTap,
+                minZoom: 10.0,
+                maxZoom: 18.0,
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.all,
+                  enableMultiFingerGestureRace: true,
                 ),
-                keepBuffer: 2,
               ),
-              // Show all segments of the selected road
-              if (_selectedRoadSegments.isNotEmpty) PolylineLayer(polylines: _selectedRoadSegments)
-            ],
-          ),
-          // Info panel in the lower third of the screen
-          Positioned(
-            left: 20,
-            right: 20,
-            bottom: 80,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 4,
-                    offset: Offset(0, 2),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  subdomains: const ['a', 'b', 'c'],
+                  userAgentPackageName: 'com.example.app',
+                  tileProvider: NetworkTileProvider(
+                    headers: {
+                      'User-Agent': 'ProspectMap-App/1.0',
+                    },
                   ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _selectedRoadName,
-                    style: const TextStyle(fontSize: 16),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  keepBuffer: 2,
+                ),
+                if (_selectedRoadSegments.isNotEmpty) PolylineLayer(polylines: _selectedRoadSegments),
+              ],
+            ),
+            if (_isPanelExpanded)
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: 80,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  ElevatedButton(
-                    onPressed: _selectedRoadIndex != null ? _saveRideDate : null,
-                    child: const Text('Ajouter une date de passage'),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_selectedRoadName != _noRoadSelectedString)
-                    Builder(
-                      builder: (context) {
-                        final List<dynamic> rideDates = ridesBox.get(_selectedRoadName, defaultValue: []) ?? [];
-                        if (rideDates.isEmpty) {
-                          return const SizedBox.shrink();
-                        }
-                        return Padding(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _selectedRoadName,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: _selectedRoadIndex != null ? _saveRideDate : null,
+                        child: const Text('Ajouter une date de passage'),
+                      ),
+                      const SizedBox(height: 8),
+                      if ((ridesBox.get(_selectedRoadName, defaultValue: []) ?? []).isNotEmpty)
+                        Padding(
                           padding: const EdgeInsets.all(12),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Dates de passage :', style: TextStyle(fontWeight: FontWeight.bold)),
+                              const Text(
+                                'Dates de passage :',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
                               ConstrainedBox(
                                 constraints: const BoxConstraints(maxHeight: 110),
                                 child: ListView(
                                   shrinkWrap: true,
-                                  children: (rideDates..sort((a, b) => b.compareTo(a))).map((date) {
+                                  children: (ridesBox.get(_selectedRoadName, defaultValue: []) ?? []).map<Widget>((date) {
                                     final d = DateTime.parse(date);
                                     final formattedDate = d.toLocal().toString().split(' ')[0];
                                     return Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
-                                        Text(
-                                          formattedDate,
-                                          style: const TextStyle(fontSize: 14),
-                                        ),
+                                        Text(formattedDate, style: const TextStyle(fontSize: 14)),
                                         IconButton(
                                           icon: const Icon(Icons.delete, color: Colors.red),
                                           onPressed: () {
@@ -435,30 +429,59 @@ class HomeState extends State<Home> {
                               ),
                             ],
                           ),
-                        );
-                      },
-                    ),
-                  const SizedBox(height: 8),
-                  ElevatedButton(
+                        ),
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _selectedRoadIndex = null;
+                            _selectedRoadSegments = [];
+                            _selectedRoadName = _noRoadSelectedString;
+                            _isPanelExpanded = false;
+                          });
+                        },
+                        child: const Text('Désélectionner'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (_selectedRoadIndex != null)
+              Stack(children: [
+                Positioned(
+                  // Raise FAB above panel when expanded
+                  bottom: 24,
+                  right: 16,
+                  child: FloatingActionButton(
+                    mini: true,
                     onPressed: () {
                       setState(() {
-                        _selectedRoadIndex = null;
-                        _selectedRoadSegments = [];
-                        _selectedRoadName = _noRoadSelectedString;
+                        _isPanelExpanded = !_isPanelExpanded;
                       });
                     },
-                    child: const Text('Désélectionner'),
+                    child: Icon(_isPanelExpanded ? Icons.close : Icons.info_outline),
                   ),
-                ],
-              ),
-            ),
-          ),
-          if (_isLoading)
-            const Center(
-              child: CircularProgressIndicator(),
-            ),
-        ],
-      ),
-    );
+                ),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 24),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    constraints: const BoxConstraints(maxWidth: 300),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      _roadData[_selectedRoadIndex!]['name'],
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ]),
+            if (_isLoading) const Center(child: CircularProgressIndicator()),
+          ],
+        ));
   }
 }
