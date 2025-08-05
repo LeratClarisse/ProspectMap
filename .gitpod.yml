@@ -12,7 +12,7 @@ tasks:
     command: |
       export PATH="$HOME/flutter/bin:$PATH"
       flutter run -d web-server --web-port=3000 --release
-      
+
 ports:
   - port: 3000
     onOpen: open-preview
@@ -21,3 +21,4 @@ vscode:
   extensions:
     - dart-code.flutter
     - dart-code.dart-code
+    - esbenp.prettier-vscode

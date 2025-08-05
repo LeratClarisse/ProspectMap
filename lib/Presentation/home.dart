@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:convert';
@@ -12,6 +15,9 @@ class Home extends StatefulWidget {
 }
 
 class HomeState extends State<Home> {
+  LatLng? userLocation;
+  late final StreamSubscription<Position> _positionStream;
+
   final MapController _mapController = MapController();
 
   // Coordinates for Croix
@@ -39,6 +45,26 @@ class HomeState extends State<Home> {
     super.initState();
     ridesBox = Hive.box<List<dynamic>>('rides');
     _fetchRoads();
+    _startLiveLocation();
+  }
+
+  @override
+  void dispose() {
+    _positionStream.cancel();
+    super.dispose();
+  }
+
+  void _startLiveLocation() async {
+    final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+      await Geolocator.requestPermission();
+    }
+
+    _positionStream = Geolocator.getPositionStream().listen((position) {
+      setState(() {
+        userLocation = LatLng(position.latitude, position.longitude);
+      });
+    });
   }
 
   void _buildColoredRoadSegments() {
@@ -406,6 +432,21 @@ class HomeState extends State<Home> {
                   ),
                   keepBuffer: 2,
                 ),
+                if (userLocation != null)
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: userLocation!,
+                        width: 40,
+                        height: 40,
+                        child: Icon(
+                          Icons.my_location,
+                          color: Colors.blue,
+                          size: 30,
+                        ),
+                      ),
+                    ],
+                  ),
                 if (_showColoredSegments) PolylineLayer(polylines: _coloredRoadSegments),
                 if (_selectedRoadSegments.isNotEmpty) PolylineLayer(polylines: _selectedRoadSegments),
               ],
@@ -497,7 +538,6 @@ class HomeState extends State<Home> {
             if (_selectedRoadIndex != null)
               Stack(children: [
                 Positioned(
-                  // Raise FAB above panel when expanded
                   bottom: 24,
                   right: 16,
                   child: FloatingActionButton(
@@ -529,6 +569,20 @@ class HomeState extends State<Home> {
                   ),
                 ),
               ]),
+            Positioned(
+              bottom: 24,
+              right: 72, // offset to leave room for the info button if shown
+              child: FloatingActionButton(
+                heroTag: 'center_location',
+                mini: true,
+                onPressed: () {
+                  if (userLocation != null) {
+                    _mapController.move(userLocation!, 17.0);
+                  }
+                },
+                child: const Icon(Icons.my_location),
+              ),
+            ),
             Positioned(
               bottom: 24,
               left: 16,
