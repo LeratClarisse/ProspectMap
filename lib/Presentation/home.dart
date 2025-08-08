@@ -456,7 +456,7 @@ class HomeState extends State<Home> {
             if (_isPanelExpanded)
               Positioned(
                 left: 20,
-                right: 20,
+                right: 80,
                 bottom: 80,
                 child: Container(
                   padding: const EdgeInsets.all(12),
@@ -537,43 +537,44 @@ class HomeState extends State<Home> {
                   ),
                 ),
               ),
-            if (_selectedRoadIndex != null)
-              Stack(children: [
-                Positioned(
-                  bottom: 24,
-                  right: 16,
-                  child: FloatingActionButton(
-                    mini: true,
-                    onPressed: () {
-                      setState(() {
-                        _isPanelExpanded = !_isPanelExpanded;
-                      });
-                    },
-                    child: Icon(_isPanelExpanded ? Icons.close : Icons.info_outline),
+            if (_selectedRoadIndex != null) ...[
+              // INFO button + Road Name Bubble
+              Positioned(
+                bottom: 80, // slightly above the location button
+                right: 16,
+                child: FloatingActionButton(
+                  mini: true,
+                  heroTag: 'info_button',
+                  onPressed: () {
+                    setState(() {
+                      _isPanelExpanded = !_isPanelExpanded;
+                    });
+                  },
+                  child: Icon(_isPanelExpanded ? Icons.close : Icons.info_outline),
+                ),
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 24),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  constraints: const BoxConstraints(maxWidth: 240),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    _roadData[_selectedRoadIndex!]['name'],
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 24),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    constraints: const BoxConstraints(maxWidth: 300),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      _roadData[_selectedRoadIndex!]['name'],
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-              ]),
+              ),
+            ],
             Positioned(
               bottom: 24,
-              right: 72, // offset to leave room for the info button if shown
+              right: 16,
               child: FloatingActionButton(
                 heroTag: 'center_location',
                 mini: true,
