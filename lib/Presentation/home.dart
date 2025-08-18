@@ -408,7 +408,8 @@ class HomeState extends State<Home> {
           centerTitle: true,
           title: const Text('Prospect Map'),
         ),
-        body: Stack(
+        body: SafeArea(
+            child: Stack(
           children: [
             FlutterMap(
               mapController: _mapController,
@@ -601,6 +602,6 @@ class HomeState extends State<Home> {
             ),
             if (_isLoading) const Center(child: CircularProgressIndicator()),
           ],
-        ));
+        )));
   }
 }
