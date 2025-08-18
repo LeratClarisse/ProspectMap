@@ -104,7 +104,7 @@ class HomeState extends State<Home> {
 
     if (daysSince <= 30) {
       return Colors.green;
-    } else if (daysSince <= 60) {
+    } else if (daysSince <= 45) {
       return Colors.orange;
     } else {
       return Colors.red;
@@ -170,6 +170,7 @@ class HomeState extends State<Home> {
         ridesBox.put(_selectedRoadName, rideDates);
 
         _updateSelectedRoadColor();
+        _buildColoredRoadSegments();
       });
     }
   }
