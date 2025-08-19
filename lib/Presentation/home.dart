@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:convert';
+import 'dart:math' show pi;
 
 class Home extends StatefulWidget {
   const Home({Key? key}) : super(key: key);
@@ -35,6 +36,7 @@ class HomeState extends State<Home> {
   int? _selectedRoadIndex;
   final String _noRoadSelectedString = "Aucune route sélectionnée";
   String _selectedRoadName = "";
+  String? _selectedRoadId;
   bool _isLoading = false;
   late Box<List<dynamic>> ridesBox; // New box to save rides per road
   bool _isPanelExpanded = false;
@@ -73,17 +75,15 @@ class HomeState extends State<Home> {
     _coloredRoadSegments.clear();
 
     for (var road in _roadData) {
-      final roadName = road['name'];
-      final rideDates = ridesBox.get(roadName, defaultValue: []) ?? [];
+      final String roadId = (road['id'] ?? road['name']).toString();
+      final rideDates = ridesBox.get(roadId, defaultValue: []) ?? [];
       if (rideDates.isNotEmpty) {
-        // Road has at least one ride, add its colored segments
-        final color = getColorBasedOnLastRideDate(roadName);
         for (var segment in road['segments']) {
           _coloredRoadSegments.add(
             Polyline(
               points: segment['points'],
               strokeWidth: 3.0,
-              color: color.withValues(alpha: 0.7),
+              color: Colors.red.withValues(alpha: 0.7),
               borderColor: Colors.black,
               borderStrokeWidth: 0.3,
             ),
@@ -93,8 +93,8 @@ class HomeState extends State<Home> {
     }
   }
 
-  Color getColorBasedOnLastRideDate(String roadName) {
-    final List<dynamic> rideDates = ridesBox.get(roadName, defaultValue: []) ?? [];
+  Color getColorBasedOnLastRideDate(String roadId) {
+    final List<dynamic> rideDates = ridesBox.get(roadId, defaultValue: []) ?? [];
     if (rideDates.isEmpty) {
       return Colors.red; // default color if no ride
     }
@@ -113,8 +113,7 @@ class HomeState extends State<Home> {
 
   Future<void> _saveRideDate() async {
     if (_selectedRoadIndex == null) return;
-
-    final String roadName = _roadData[_selectedRoadIndex!]['name'];
+    final String roadId = (_roadData[_selectedRoadIndex!]['id'] ?? _roadData[_selectedRoadIndex!]['name']).toString();
 
     // Open a date picker
     DateTime? pickedDate = await showDatePicker(
@@ -128,7 +127,7 @@ class HomeState extends State<Home> {
       return; // User canceled
     }
 
-    List<dynamic> existingDates = ridesBox.get(roadName, defaultValue: []) ?? [];
+    List<dynamic> existingDates = ridesBox.get(roadId, defaultValue: []) ?? [];
 
     // Add the picked date
     existingDates.add(pickedDate.toIso8601String());
@@ -136,7 +135,7 @@ class HomeState extends State<Home> {
     // Sort dates descending
     existingDates.sort((a, b) => DateTime.parse(b).compareTo(DateTime.parse(a)));
 
-    ridesBox.put(roadName, existingDates);
+    ridesBox.put(roadId, existingDates);
 
     setState(() {
       _updateSelectedRoadColor();
@@ -165,9 +164,10 @@ class HomeState extends State<Home> {
 
     if (confirm == true) {
       setState(() {
-        final List<dynamic> rideDates = ridesBox.get(_selectedRoadName, defaultValue: []) ?? [];
+        if (_selectedRoadId == null) return;
+        final List<dynamic> rideDates = ridesBox.get(_selectedRoadId, defaultValue: []) ?? [];
         rideDates.removeWhere((d) => d.startsWith(date)); // Remove by date match
-        ridesBox.put(_selectedRoadName, rideDates);
+        ridesBox.put(_selectedRoadId, rideDates);
 
         _updateSelectedRoadColor();
         _buildColoredRoadSegments();
@@ -229,8 +229,10 @@ class HomeState extends State<Home> {
       List<Map<String, dynamic>> consolidatedRoads = [];
 
       roadGroups.forEach((name, groups) {
-        for (var group in groups) {
+        for (int idx = 0; idx < groups.length; idx++) {
+          final group = groups[idx];
           consolidatedRoads.add({
+            'id': '${name}::${idx}',
             'name': name,
             'segments': group,
           });
@@ -272,7 +274,7 @@ class HomeState extends State<Home> {
         return Polyline(
           points: segment['points'],
           strokeWidth: 4.0,
-          color: getColorBasedOnLastRideDate(_selectedRoadName),
+          color: getColorBasedOnLastRideDate((_selectedRoadId ?? selectedRoad['id'] ?? selectedRoad['name']).toString()),
           borderColor: Colors.black,
           borderStrokeWidth: 0.5,
         );
@@ -326,6 +328,7 @@ class HomeState extends State<Home> {
           _selectedRoadIndex = null;
           _selectedRoadSegments = [];
           _selectedRoadName = _noRoadSelectedString;
+          _selectedRoadId = null;
           _isPanelExpanded = false;
         });
       } else {
@@ -333,6 +336,7 @@ class HomeState extends State<Home> {
         setState(() {
           _selectedRoadIndex = closestRoadIndex;
           _selectedRoadName = _roadData[closestRoadIndex]['name'];
+          _selectedRoadId = (_roadData[closestRoadIndex]['id'] ?? _roadData[closestRoadIndex]['name']).toString();
           _buildSelectedRoadSegments();
         });
       }
@@ -342,6 +346,7 @@ class HomeState extends State<Home> {
         _selectedRoadIndex = null;
         _selectedRoadSegments = [];
         _selectedRoadName = _noRoadSelectedString;
+        _selectedRoadId = null;
         _isPanelExpanded = false;
       });
     }
@@ -490,7 +495,7 @@ class HomeState extends State<Home> {
                         child: const Text('Ajouter une date de passage'),
                       ),
                       const SizedBox(height: 8),
-                      if ((ridesBox.get(_selectedRoadName, defaultValue: []) ?? []).isNotEmpty)
+                      if (_selectedRoadId != null && (ridesBox.get(_selectedRoadId, defaultValue: []) ?? []).isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.all(12),
                           child: Column(
@@ -504,7 +509,7 @@ class HomeState extends State<Home> {
                                 constraints: const BoxConstraints(maxHeight: 110),
                                 child: ListView(
                                   shrinkWrap: true,
-                                  children: (ridesBox.get(_selectedRoadName, defaultValue: []) ?? []).map<Widget>((date) {
+                                  children: (ridesBox.get(_selectedRoadId, defaultValue: []) ?? []).map<Widget>((date) {
                                     final d = DateTime.parse(date);
                                     final formattedDate = d.toLocal().toString().split(' ')[0];
                                     return Row(
@@ -531,6 +536,7 @@ class HomeState extends State<Home> {
                             _selectedRoadIndex = null;
                             _selectedRoadSegments = [];
                             _selectedRoadName = _noRoadSelectedString;
+                            _selectedRoadId = null;
                             _isPanelExpanded = false;
                           });
                         },
