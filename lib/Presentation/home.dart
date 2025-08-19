@@ -184,7 +184,7 @@ class HomeState extends State<Home> {
 
     try {
       // GeoJSON file from https://overpass-turbo.eu/
-      final geoJsonString = await DefaultAssetBundle.of(context).loadString('assets/db/doubs_belfort_hautesaone.geojson');
+      final geoJsonString = await DefaultAssetBundle.of(context).loadString('assets/geojsons/doubs_belfort_hautesaone.geojson');
       final geoJson = json.decode(geoJsonString);
 
       Map<String, List<List<Map<String, dynamic>>>> roadGroups = {};

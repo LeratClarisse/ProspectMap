@@ -1,6 +1,6 @@
 # Prospect Map
 
-A template project for Flutter apps
+A flutter project for prospection.
 
 
 To use flutter_native_splash :
@@ -17,9 +17,3 @@ To use flutter_launcher_icons :
 - name it logo.png
 - put it in 'assets/icons'
 - use flutter pub run flutter_launcher_icons
-
-
-If **Cannot not find minSdk** error :
-- in android/local.properties add :
-  - flutter.minSdkVersion=16
-  - flutter.targetSdkVersion=31
