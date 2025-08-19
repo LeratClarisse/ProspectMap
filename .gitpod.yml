@@ -12,7 +12,6 @@ tasks:
     command: |
       export PATH="$HOME/flutter/bin:$PATH"      
       flutter pub get
-      flutter run -d web-server --web-port=3000
 
 ports:
   - port: 3000
