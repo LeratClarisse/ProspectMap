@@ -117,7 +117,7 @@ class HomeState extends State<Home> {
     if (_selectedRoadIndex == null) return;
 
     final String roadId = _roadData[_selectedRoadIndex!]['idRoad'];
-    print(roadId);
+
     // Open a date picker
     DateTime? pickedDate = await showDatePicker(
       context: context,
@@ -336,7 +336,6 @@ class HomeState extends State<Home> {
           _selectedRoadName = _roadData[closestRoadIndex]['name'];
           _selectedRoadId = _roadData[closestRoadIndex]['idRoad'];
           _buildSelectedRoadSegments();
-          print(_roadData[closestRoadIndex]);
         });
       }
     } else {

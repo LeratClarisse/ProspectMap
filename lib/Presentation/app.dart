@@ -11,10 +11,15 @@ class App extends StatelessWidget {
         valueListenable: Hive.box('settings').listenable(),
         builder: (context, box, widget) {
           bool darkMode = box.get('darkmode', defaultValue: false);
-          return MaterialApp(
-              themeMode: darkMode ? ThemeMode.dark : ThemeMode.light,
-              darkTheme: ThemeData.dark(),
-              home: const Home());
+          return Directionality(
+              textDirection: TextDirection.ltr,
+              child: Banner(
+                  location: BannerLocation.topEnd,
+                  message: 'BETA',
+                  color: Colors.lightBlue,
+                  textStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12.0, letterSpacing: 1.0),
+                  child: MaterialApp(
+                      themeMode: darkMode ? ThemeMode.dark : ThemeMode.light, darkTheme: ThemeData.dark(), home: const Home())));
         });
   }
 }
