@@ -35,6 +35,7 @@ class HomeState extends State<Home> {
   int? _selectedRoadIndex;
   final String _noRoadSelectedString = "Aucune route sélectionnée";
   String _selectedRoadName = "";
+  String _selectedRoadId = "";
   bool _isLoading = false;
   late Box<List<dynamic>> ridesBox; // New box to save rides per road
   bool _isPanelExpanded = false;
@@ -44,6 +45,7 @@ class HomeState extends State<Home> {
   @override
   void initState() {
     _selectedRoadName = _noRoadSelectedString;
+    _selectedRoadId = "";
     super.initState();
     ridesBox = Hive.box<List<dynamic>>('rides');
     _fetchRoads();
@@ -73,11 +75,11 @@ class HomeState extends State<Home> {
     _coloredRoadSegments.clear();
 
     for (var road in _roadData) {
-      final roadName = road['name'];
-      final rideDates = ridesBox.get(roadName, defaultValue: []) ?? [];
+      final roadId = road['idRoad'];
+      final rideDates = ridesBox.get(roadId, defaultValue: []) ?? [];
       if (rideDates.isNotEmpty) {
         // Road has at least one ride, add its colored segments
-        final color = getColorBasedOnLastRideDate(roadName);
+        final color = getColorBasedOnLastRideDate(roadId);
         for (var segment in road['segments']) {
           _coloredRoadSegments.add(
             Polyline(
@@ -93,8 +95,8 @@ class HomeState extends State<Home> {
     }
   }
 
-  Color getColorBasedOnLastRideDate(String roadName) {
-    final List<dynamic> rideDates = ridesBox.get(roadName, defaultValue: []) ?? [];
+  Color getColorBasedOnLastRideDate(String roadId) {
+    final List<dynamic> rideDates = ridesBox.get(roadId, defaultValue: []) ?? [];
     if (rideDates.isEmpty) {
       return Colors.red; // default color if no ride
     }
@@ -114,8 +116,8 @@ class HomeState extends State<Home> {
   Future<void> _saveRideDate() async {
     if (_selectedRoadIndex == null) return;
 
-    final String roadName = _roadData[_selectedRoadIndex!]['name'];
-
+    final String roadId = _roadData[_selectedRoadIndex!]['idRoad'];
+    print(roadId);
     // Open a date picker
     DateTime? pickedDate = await showDatePicker(
       context: context,
@@ -128,7 +130,7 @@ class HomeState extends State<Home> {
       return; // User canceled
     }
 
-    List<dynamic> existingDates = ridesBox.get(roadName, defaultValue: []) ?? [];
+    List<dynamic> existingDates = ridesBox.get(roadId, defaultValue: []) ?? [];
 
     // Add the picked date
     existingDates.add(pickedDate.toIso8601String());
@@ -136,7 +138,7 @@ class HomeState extends State<Home> {
     // Sort dates descending
     existingDates.sort((a, b) => DateTime.parse(b).compareTo(DateTime.parse(a)));
 
-    ridesBox.put(roadName, existingDates);
+    ridesBox.put(roadId, existingDates);
 
     setState(() {
       _updateSelectedRoadColor();
@@ -165,9 +167,9 @@ class HomeState extends State<Home> {
 
     if (confirm == true) {
       setState(() {
-        final List<dynamic> rideDates = ridesBox.get(_selectedRoadName, defaultValue: []) ?? [];
+        final List<dynamic> rideDates = ridesBox.get(_selectedRoadId, defaultValue: []) ?? [];
         rideDates.removeWhere((d) => d.startsWith(date)); // Remove by date match
-        ridesBox.put(_selectedRoadName, rideDates);
+        ridesBox.put(_selectedRoadId, rideDates);
 
         _updateSelectedRoadColor();
         _buildColoredRoadSegments();
@@ -184,7 +186,8 @@ class HomeState extends State<Home> {
 
     try {
       // GeoJSON file from https://overpass-turbo.eu/
-      final geoJsonString = await DefaultAssetBundle.of(context).loadString('assets/geojsons/doubs_belfort_hautesaone.geojson');
+      final geoJsonString =
+          await DefaultAssetBundle.of(context).loadString('assets/geojsons/doubs_belfort_hautesaone_roads.geojson');
       final geoJson = json.decode(geoJsonString);
 
       Map<String, List<List<Map<String, dynamic>>>> roadGroups = {};
@@ -206,10 +209,7 @@ class HomeState extends State<Home> {
           bool added = false;
           for (var group in roadGroups[name]!) {
             if (_areSegmentsConnected(group, points)) {
-              group.add({
-                'points': points,
-                'tags': properties,
-              });
+              group.add({'points': points, 'id': properties['@id']});
               added = true;
               break;
             }
@@ -217,10 +217,7 @@ class HomeState extends State<Home> {
 
           if (!added) {
             roadGroups[name]!.add([
-              {
-                'points': points,
-                'tags': properties,
-              }
+              {'points': points, 'id': properties['@id']}
             ]);
           }
         }
@@ -230,10 +227,13 @@ class HomeState extends State<Home> {
 
       roadGroups.forEach((name, groups) {
         for (var group in groups) {
-          consolidatedRoads.add({
-            'name': name,
-            'segments': group,
-          });
+          final idRoad = group[0]['id'];
+          final segments = group.map((segment) {
+            final newSegment = Map.of(segment);
+            newSegment.remove("id");
+            return newSegment;
+          }).toList();
+          consolidatedRoads.add({'name': name, 'segments': segments, 'idRoad': idRoad});
         }
       });
 
@@ -272,7 +272,7 @@ class HomeState extends State<Home> {
         return Polyline(
           points: segment['points'],
           strokeWidth: 4.0,
-          color: getColorBasedOnLastRideDate(_selectedRoadName),
+          color: getColorBasedOnLastRideDate(_selectedRoadId),
           borderColor: Colors.black,
           borderStrokeWidth: 0.5,
         );
@@ -326,6 +326,7 @@ class HomeState extends State<Home> {
           _selectedRoadIndex = null;
           _selectedRoadSegments = [];
           _selectedRoadName = _noRoadSelectedString;
+          _selectedRoadId = "";
           _isPanelExpanded = false;
         });
       } else {
@@ -333,7 +334,9 @@ class HomeState extends State<Home> {
         setState(() {
           _selectedRoadIndex = closestRoadIndex;
           _selectedRoadName = _roadData[closestRoadIndex]['name'];
+          _selectedRoadId = _roadData[closestRoadIndex]['idRoad'];
           _buildSelectedRoadSegments();
+          print(_roadData[closestRoadIndex]);
         });
       }
     } else {
@@ -342,6 +345,7 @@ class HomeState extends State<Home> {
         _selectedRoadIndex = null;
         _selectedRoadSegments = [];
         _selectedRoadName = _noRoadSelectedString;
+        _selectedRoadId = "";
         _isPanelExpanded = false;
       });
     }
@@ -490,7 +494,7 @@ class HomeState extends State<Home> {
                         child: const Text('Ajouter une date de passage'),
                       ),
                       const SizedBox(height: 8),
-                      if ((ridesBox.get(_selectedRoadName, defaultValue: []) ?? []).isNotEmpty)
+                      if ((ridesBox.get(_selectedRoadId, defaultValue: []) ?? []).isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.all(12),
                           child: Column(
@@ -504,7 +508,7 @@ class HomeState extends State<Home> {
                                 constraints: const BoxConstraints(maxHeight: 110),
                                 child: ListView(
                                   shrinkWrap: true,
-                                  children: (ridesBox.get(_selectedRoadName, defaultValue: []) ?? []).map<Widget>((date) {
+                                  children: (ridesBox.get(_selectedRoadId, defaultValue: []) ?? []).map<Widget>((date) {
                                     final d = DateTime.parse(date);
                                     final formattedDate = d.toLocal().toString().split(' ')[0];
                                     return Row(
@@ -531,6 +535,7 @@ class HomeState extends State<Home> {
                             _selectedRoadIndex = null;
                             _selectedRoadSegments = [];
                             _selectedRoadName = _noRoadSelectedString;
+                            _selectedRoadId = "";
                             _isPanelExpanded = false;
                           });
                         },
