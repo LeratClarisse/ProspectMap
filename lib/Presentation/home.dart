@@ -22,13 +22,8 @@ class HomeState extends State<Home> {
 
   final MapController _mapController = MapController();
 
-  // Coordinates for Croix
-  final LatLng _center = LatLng(47.4600, 6.9600);
-  // Bounding box for Croix area
-  final double north = 47.5100;
-  final double south = 47.4100;
-  final double east = 7.0300;
-  final double west = 6.8900;
+  // Coordinates for LaForet Audincourt
+  LatLng _center = LatLng(47.4800, 6.8400);
 
   List<Map<String, dynamic>> _roadData = []; // Store raw road data
   List<Polyline> _selectedRoadSegments = [];
@@ -67,6 +62,7 @@ class HomeState extends State<Home> {
     _positionStream = Geolocator.getPositionStream().listen((position) {
       setState(() {
         userLocation = LatLng(position.latitude, position.longitude);
+        if (userLocation != null) _center = userLocation!;
       });
     });
   }
@@ -287,11 +283,6 @@ class HomeState extends State<Home> {
   // Handle tap on map
 // Handle tap on map
   void _handleTap(TapPosition tapPosition, LatLng point) {
-    // Don't select a road if we tap near the UI elements at the bottom
-    if (point.latitude < south + 0.003) {
-      return;
-    }
-
     // Check if tap is near any road
     double closestDistance = double.infinity;
     int closestRoadIndex = -1;
