@@ -116,11 +116,11 @@ class HomeState extends State<Home> {
 
     // Open a date picker
     DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
-    );
+        context: context,
+        initialDate: DateTime.now(),
+        firstDate: DateTime(2000),
+        lastDate: DateTime.now(),
+        locale: Locale("fr", "FR"));
 
     if (pickedDate == null) {
       return; // User canceled

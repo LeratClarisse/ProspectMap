@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'home.dart';
 
@@ -19,7 +20,15 @@ class App extends StatelessWidget {
                   color: Colors.lightBlue,
                   textStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12.0, letterSpacing: 1.0),
                   child: MaterialApp(
-                      themeMode: darkMode ? ThemeMode.dark : ThemeMode.light, darkTheme: ThemeData.dark(), home: const Home())));
+                      themeMode: darkMode ? ThemeMode.dark : ThemeMode.light,
+                      darkTheme: ThemeData.dark(),
+                      localizationsDelegates: const [
+                        GlobalMaterialLocalizations.delegate,
+                      ],
+                      supportedLocales: const [
+                        Locale('fr', 'FR'),
+                      ],
+                      home: const Home())));
         });
   }
 }
