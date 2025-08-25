@@ -60,6 +60,26 @@ jobs:
           path: |
             build/app/outputs/bundle/release/*.aab
 
+      # Generate changelog from commits since last tag
+      - name: Generate changelog
+        id: changelog
+        run: |
+          last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$last_tag" ]; then
+            echo "No previous tag found, showing all commits."
+            log=$(git log --pretty=format:"- %s")
+          else
+            log=$(git log $last_tag..HEAD --pretty=format:"- %s")
+          fi
+
+          echo "Changelog:"
+          echo "$log"
+          # Save to GitHub output
+          log="${log//'%'/'%25'}"
+          log="${log//$'\n'/'%0A'}"
+          log="${log//$'\r'/'%0D'}"
+          echo "changelog=$log" >> $GITHUB_OUTPUT
+
       # Create GitHub Release with tag and changelog
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2.3.2
