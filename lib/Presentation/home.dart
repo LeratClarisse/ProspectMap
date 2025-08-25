@@ -41,10 +41,10 @@ class HomeState extends State<Home> {
   void initState() {
     _selectedRoadName = _noRoadSelectedString;
     _selectedRoadId = "";
+    _startLiveLocation();
     super.initState();
     ridesBox = Hive.box<List<dynamic>>('rides');
     _fetchRoads();
-    _startLiveLocation();
   }
 
   @override
@@ -128,11 +128,7 @@ class HomeState extends State<Home> {
 
     List<dynamic> existingDates = ridesBox.get(roadId, defaultValue: []) ?? [];
 
-    // Add the picked date
     existingDates.add(pickedDate.toIso8601String());
-
-    // Sort dates descending
-    existingDates.sort((a, b) => DateTime.parse(b).compareTo(DateTime.parse(a)));
 
     ridesBox.put(roadId, existingDates);
 
@@ -409,7 +405,7 @@ class HomeState extends State<Home> {
             FlutterMap(
               mapController: _mapController,
               options: MapOptions(
-                initialCenter: _center,
+                initialCenter: userLocation ?? _center,
                 initialZoom: 13.0,
                 onTap: _handleTap,
                 minZoom: 10.0,
@@ -496,25 +492,32 @@ class HomeState extends State<Home> {
                               ),
                               ConstrainedBox(
                                 constraints: const BoxConstraints(maxHeight: 110),
-                                child: ListView(
-                                  shrinkWrap: true,
-                                  children: (ridesBox.get(_selectedRoadId, defaultValue: []) ?? []).map<Widget>((date) {
-                                    final d = DateTime.parse(date);
-                                    final formattedDate = d.toLocal().toString().split(' ')[0];
-                                    return Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(formattedDate, style: const TextStyle(fontSize: 14)),
-                                        IconButton(
-                                          icon: const Icon(Icons.delete, color: Colors.red),
-                                          onPressed: () {
-                                            _confirmDeleteDate(context, formattedDate);
-                                          },
-                                        ),
-                                      ],
-                                    );
-                                  }).toList(),
-                                ),
+                                child: Builder(builder: (context) {
+                                  final dates = List<String>.from(
+                                    ridesBox.get(_selectedRoadId, defaultValue: []) ?? [],
+                                  );
+                                  // Sort descending (most recent first)
+                                  dates.sort((a, b) => DateTime.parse(b).compareTo(DateTime.parse(a)));
+                                  return ListView(
+                                    shrinkWrap: true,
+                                    children: dates.map<Widget>((date) {
+                                      final d = DateTime.parse(date);
+                                      final formattedDate = d.toLocal().toString().split(' ')[0];
+                                      return Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(formattedDate, style: const TextStyle(fontSize: 14)),
+                                          IconButton(
+                                            icon: const Icon(Icons.delete, color: Colors.red),
+                                            onPressed: () {
+                                              _confirmDeleteDate(context, formattedDate);
+                                            },
+                                          ),
+                                        ],
+                                      );
+                                    }).toList(),
+                                  );
+                                }),
                               ),
                             ],
                           ),
