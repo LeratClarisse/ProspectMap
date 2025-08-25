@@ -63,9 +63,30 @@ jobs:
       # Generate changelog from commits since last tag
       - name: Generate changelog
         id: changelog
-        uses: mikepenz/release-changelog-builder-action@v4
-        #with:
-          #configuration: ".github/changelog-config.json" # optional
+        uses: mikepenz/release-changelog-builder-action@v5
+        with:
+          mode: "COMMIT"
+          configurationJson: |
+            {
+              "template": "#{{CHANGELOG}}",
+              "categories": [
+                {
+                    "title": "## Feature",
+                    "labels": ["feat"]
+                },
+                {
+                    "title": "## Fix",
+                    "labels": ["fix"]
+                }
+              ],
+              "label_extractor": [
+                {
+                  "pattern": "^(feat|fix){1}(\\([\\w\\-\\.]+\\))?(!)?: ([\\w ])+([\\s\\S]*)",
+                  "on_property": "title",
+                  "target": "$1"
+                }
+              ]
+            }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
