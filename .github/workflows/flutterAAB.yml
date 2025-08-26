@@ -83,7 +83,8 @@ jobs:
                 {
                   "pattern": "(?i)^(feat|fix)(\\([\\w\\-\\.]+\\))?(!)?: (.*)",
                   "on_property": "title",
-                  "target": "$1"
+                  "target": "$1",
+                  "transformers": ["toLowerCase"]
                 }
               ],
               "exclude_labels": ["Other"]
