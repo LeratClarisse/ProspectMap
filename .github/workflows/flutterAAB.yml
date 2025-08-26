@@ -71,22 +71,22 @@ jobs:
               "template": "#{{CHANGELOG}}",
               "categories": [
                 {
-                    "title": "## Feature",
-                    "labels": ["feat", "Feat"]
+                    "title": "## Features",
+                    "labels": ["feat"]
                 },
                 {
-                    "title": "## Fix",
-                    "labels": ["fix", "Fix"]
+                    "title": "## Fixes",
+                    "labels": ["fix"]
                 }
               ],
               "label_extractor": [
                 {
-                  "pattern": "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test){1}(\\([\\w\\-\\.]+\\))?(!)?: ([\\w ])+([\\s\\S]*)",
+                  "pattern": "(?i)^(feat|fix)(!)?:",
                   "on_property": "title",
                   "target": "$1"
                 }
               ],
-              "exclude_labels": ["Other"]
+              "ignore_labels": ["build", "chore", "ci", "docs", "perf", "refactor", "revert", "style", "test"]
             }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
