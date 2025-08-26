@@ -72,21 +72,22 @@ jobs:
               "categories": [
                 {
                     "title": "## Features",
-                    "labels": ["feat"]
+                    "labels": ["feat", "Feat"]
                 },
                 {
-                    "title": "## Fixes",
-                    "labels": ["fix"]
+                    "title": "## Fixes", 
+                    "labels": ["fix", "Fix"]
                 }
               ],
               "label_extractor": [
                 {
-                  "pattern": "(?i)^(feat|fix)(!)?:",
+                  "pattern": "^(feat|fix|Feat|Fix)(!)?:.*",
                   "on_property": "title",
                   "target": "$1"
                 }
               ],
-              "ignore_labels": ["build", "chore", "ci", "docs", "perf", "refactor", "revert", "style", "test"]
+              "empty_template": "",
+              "max_tags": 1
             }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
