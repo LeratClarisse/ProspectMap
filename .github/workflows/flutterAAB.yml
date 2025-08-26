@@ -72,19 +72,18 @@ jobs:
               "categories": [
                 {
                     "title": "## Feature",
-                    "labels": ["feat"]
+                    "labels": ["feat", "Feat"]
                 },
                 {
                     "title": "## Fix",
-                    "labels": ["fix"]
+                    "labels": ["fix", "Fix"]
                 }
               ],
               "label_extractor": [
                 {
                   "pattern": "(?i)^(feat|fix)(\\([\\w\\-\\.]+\\))?(!)?: (.*)",
                   "on_property": "title",
-                  "target": "$1",
-                  "transformers": ["toLowerCase"]
+                  "target": "$1"
                 }
               ],
               "exclude_labels": ["Other"]
