@@ -81,11 +81,12 @@ jobs:
               ],
               "label_extractor": [
                 {
-                  "pattern": "(?i)^(feat|fix){1}(\\([\\w\\-\\.]+\\))?(!)?: ([\\w ])+([\\s\\S]*)"
+                  "pattern": "(?i)^(feat|fix)(\\([\\w\\-\\.]+\\))?(!)?: (.*)",
                   "on_property": "title",
                   "target": "$1"
                 }
-              ]
+              ],
+              "exclude_labels": ["Other"]
             }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
