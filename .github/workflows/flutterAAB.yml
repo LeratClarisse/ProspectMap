@@ -46,19 +46,19 @@ jobs:
           echo "version=$version" >> $GITHUB_OUTPUT
           
       # Get dependencies and make assigned appbundle
-      - run: | 
-          flutter clean
-          flutter pub get
-          flutter analyze .
-          flutter build appbundle
+      #- run: | 
+         # flutter clean
+          #flutter pub get
+          #flutter analyze .
+          #flutter build appbundle
           
       # Make appbundle downloadable
-      - name: Upload artefato
-        uses: actions/upload-artifact@v4
-        with:
-          name: appbundle
-          path: |
-            build/app/outputs/bundle/release/*.aab
+      #- name: Upload artefato
+       # uses: actions/upload-artifact@v4
+        #with:
+         # name: appbundle
+          #path: |
+           # build/app/outputs/bundle/release/*.aab
 
       # Generate changelog from commits since last tag
       - name: Generate changelog
@@ -81,7 +81,7 @@ jobs:
               ],
               "label_extractor": [
                 {
-                  "pattern": "^(feat|fix){1}(\\([\\w\\-\\.]+\\))?(!)?: ([\\w ])+([\\s\\S]*)",
+                  "pattern": "(?i)^(feat|fix){1}(\\([\\w\\-\\.]+\\))?(!)?: ([\\w ])+([\\s\\S]*)"
                   "on_property": "title",
                   "target": "$1"
                 }
