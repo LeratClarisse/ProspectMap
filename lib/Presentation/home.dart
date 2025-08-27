@@ -24,6 +24,7 @@ class HomeState extends State<Home> {
 
   // Coordinates for LaForet Audincourt
   LatLng _center = LatLng(47.4800, 6.8400);
+  bool _hasInitialLocationSet = false;
 
   List<Map<String, dynamic>> _roadData = []; // Store raw road data
   List<Polyline> _selectedRoadSegments = [];
@@ -39,11 +40,11 @@ class HomeState extends State<Home> {
 
   @override
   void initState() {
+    super.initState();
     _selectedRoadName = _noRoadSelectedString;
     _selectedRoadId = "";
-    _startLiveLocation();
-    super.initState();
     ridesBox = Hive.box<List<dynamic>>('rides');
+    _startLiveLocation();
     _fetchRoads();
   }
 
@@ -56,13 +57,49 @@ class HomeState extends State<Home> {
   void _startLiveLocation() async {
     final permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-      await Geolocator.requestPermission();
+      // Checks a second time
+      final newPermission = await Geolocator.requestPermission();
+      if (newPermission == LocationPermission.denied || newPermission == LocationPermission.deniedForever) {
+        // If permission is still denied, we can't get location
+        return;
+      }
     }
 
-    _positionStream = Geolocator.getPositionStream().listen((position) {
+    // Get initial position immediately
+    Position initialPosition = await Geolocator.getCurrentPosition(
+      locationSettings: LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+      ),
+    );
+
+    setState(() {
+      userLocation = LatLng(initialPosition.latitude, initialPosition.longitude);
+      _center = userLocation!;
+
+      // Move map to user location on first load
+      if (!_hasInitialLocationSet) {
+        _mapController.move(_center, 13.0);
+        _hasInitialLocationSet = true;
+      }
+    });
+
+    // Then start listening for location updates
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10, // Only update when user moves 10 meters
+      ),
+    ).listen((position) {
       setState(() {
         userLocation = LatLng(position.latitude, position.longitude);
-        if (userLocation != null) _center = userLocation!;
+
+        // Only update center for the first location fix
+        if (!_hasInitialLocationSet) {
+          _center = userLocation!;
+          _mapController.move(_center, 15.0);
+          _hasInitialLocationSet = true;
+        }
       });
     });
   }
@@ -405,7 +442,7 @@ class HomeState extends State<Home> {
             FlutterMap(
               mapController: _mapController,
               options: MapOptions(
-                initialCenter: userLocation ?? _center,
+                initialCenter: _center,
                 initialZoom: 13.0,
                 onTap: _handleTap,
                 minZoom: 10.0,
