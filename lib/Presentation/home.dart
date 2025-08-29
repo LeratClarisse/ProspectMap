@@ -21,6 +21,8 @@ class HomeState extends State<Home> {
   late final StreamSubscription<Position> _positionStream;
 
   final MapController _mapController = MapController();
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   // Coordinates for LaForet Audincourt
   LatLng _center = LatLng(47.4800, 6.8400);
@@ -38,6 +40,11 @@ class HomeState extends State<Home> {
   bool _showColoredSegments = true;
   List<Polyline> _coloredRoadSegments = [];
 
+  // Search related variables
+  List<Map<String, dynamic>> _searchSuggestions = [];
+  bool _showSuggestions = false;
+  String _searchQuery = "";
+
   @override
   void initState() {
     super.initState();
@@ -46,12 +53,145 @@ class HomeState extends State<Home> {
     ridesBox = Hive.box<List<dynamic>>('rides');
     _startLiveLocation();
     _fetchRoads();
+
+    // Add listener to search controller
+    _searchController.addListener(_onSearchChanged);
+    _searchFocusNode.addListener(_onFocusChanged);
   }
 
   @override
   void dispose() {
     _positionStream.cancel();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text;
+      _updateSearchSuggestions();
+    });
+  }
+
+  void _onFocusChanged() {
+    if (_searchFocusNode.hasFocus) {
+      setState(() {
+        _showSuggestions = _searchQuery.isNotEmpty;
+      });
+    } else {
+      // Delay hiding suggestions to allow tap on suggestions
+      Future.delayed(const Duration(milliseconds: 150), () {
+        if (mounted && !_searchFocusNode.hasFocus) {
+          setState(() {
+            _showSuggestions = false;
+          });
+        }
+      });
+    }
+  }
+
+  void _updateSearchSuggestions() {
+    if (_searchQuery.isEmpty) {
+      _searchSuggestions = [];
+      _showSuggestions = false;
+      return;
+    }
+
+    // Filter roads based on search query with better matching
+    final query = _searchQuery.toLowerCase().trim();
+    final filtered = _roadData.where((road) {
+      final name = road['name'].toString().toLowerCase();
+      return name.contains(query) || name.split(' ').any((word) => word.startsWith(query));
+    }).toList();
+
+    // Sort by relevance: exact matches first, then starts with, then contains
+    filtered.sort((a, b) {
+      final nameA = a['name'].toString().toLowerCase();
+      final nameB = b['name'].toString().toLowerCase();
+
+      // Exact match
+      if (nameA == query) return -1;
+      if (nameB == query) return 1;
+
+      // Starts with query
+      if (nameA.startsWith(query) && !nameB.startsWith(query)) return -1;
+      if (nameB.startsWith(query) && !nameA.startsWith(query)) return 1;
+
+      // Contains query (already filtered above)
+      return nameA.compareTo(nameB);
+    });
+
+    _searchSuggestions = filtered.take(5).toList(); // Limit to 5 suggestions
+    _showSuggestions = _searchSuggestions.isNotEmpty && _searchFocusNode.hasFocus;
+  }
+
+  void _onSuggestionTap(Map<String, dynamic> road) {
+    // Find the center point of the road
+    LatLng? centerPoint = _calculateRoadCenter(road);
+
+    if (centerPoint != null) {
+      // Move map to the road location with smooth animation
+      _mapController.move(centerPoint, 15.0);
+
+      // Select the road
+      int roadIndex = _roadData.indexOf(road);
+      setState(() {
+        _selectedRoadIndex = roadIndex;
+        _selectedRoadName = road['name'];
+        _selectedRoadId = road['idRoad'];
+        _buildSelectedRoadSegments();
+
+        // Update search UI
+        _searchController.text = road['name'];
+        _showSuggestions = false;
+        _searchFocusNode.unfocus();
+      });
+    }
+  }
+
+  LatLng? _calculateRoadCenter(Map<String, dynamic> road) {
+    List<LatLng> allPoints = [];
+
+    // Collect all points from all segments
+    for (var segment in road['segments']) {
+      allPoints.addAll(segment['points'] as List<LatLng>);
+    }
+
+    if (allPoints.isEmpty) return null;
+
+    // Calculate center point
+    double totalLat = 0;
+    double totalLng = 0;
+
+    for (var point in allPoints) {
+      totalLat += point.latitude;
+      totalLng += point.longitude;
+    }
+
+    return LatLng(
+      totalLat / allPoints.length,
+      totalLng / allPoints.length,
+    );
+  }
+
+  void _clearSearch() {
+    setState(() {
+      _searchController.clear();
+      _searchQuery = "";
+      _searchSuggestions = [];
+      _showSuggestions = false;
+      _searchFocusNode.unfocus();
+
+      // Also deselect current road if any
+      if (_selectedRoadIndex != null) {
+        _selectedRoadIndex = null;
+        _selectedRoadSegments = [];
+        _selectedRoadName = _noRoadSelectedString;
+        _selectedRoadId = "";
+        _isPanelExpanded = false;
+      }
+    });
   }
 
   void _startLiveLocation() async {
@@ -314,8 +454,16 @@ class HomeState extends State<Home> {
   }
 
   // Handle tap on map
-// Handle tap on map
   void _handleTap(TapPosition tapPosition, LatLng point) {
+    // Hide search suggestions if showing
+    if (_showSuggestions) {
+      setState(() {
+        _showSuggestions = false;
+        _searchFocusNode.unfocus();
+      });
+      return;
+    }
+
     // Check if tap is near any road
     double closestDistance = double.infinity;
     int closestRoadIndex = -1;
@@ -374,7 +522,7 @@ class HomeState extends State<Home> {
     }
   }
 
-// Helper method to find minimum distance to a polyline segment
+  // Helper method to find minimum distance to a polyline segment
   double _findMinDistanceToSegment(LatLng point, List<LatLng> polyline) {
     double minDist = double.infinity;
 
@@ -425,19 +573,183 @@ class HomeState extends State<Home> {
     double dx = lat - xx;
     double dy = lng - yy;
 
-    // Need to add import at the top: import 'dart:math' show pi;
     return dx * dx + dy * dy;
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: _searchController,
+        focusNode: _searchFocusNode,
+        style: const TextStyle(fontSize: 16),
+        decoration: InputDecoration(
+          hintText: 'Rechercher une route...',
+          hintStyle: TextStyle(
+            color: Colors.grey[500],
+            fontSize: 16,
+          ),
+          prefixIcon: Container(
+            padding: const EdgeInsets.all(14),
+            child: Icon(
+              Icons.search,
+              color: _searchQuery.isNotEmpty ? Theme.of(context).primaryColor : Colors.grey[500],
+              size: 24,
+            ),
+          ),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.grey,
+                      size: 16,
+                    ),
+                  ),
+                  onPressed: _clearSearch,
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        ),
+        onSubmitted: (value) {
+          if (_searchSuggestions.isNotEmpty) {
+            _onSuggestionTap(_searchSuggestions.first);
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildSearchSuggestions() {
+    if (!_showSuggestions || _searchSuggestions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Positioned(
+      top: 76, // Position below the search bar
+      left: 16,
+      right: 16,
+      child: Container(
+        constraints: const BoxConstraints(maxHeight: 300),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: ListView.builder(
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            itemCount: _searchSuggestions.length,
+            itemBuilder: (context, index) {
+              final road = _searchSuggestions[index];
+              final rideDates = ridesBox.get(road['idRoad'], defaultValue: []) ?? [];
+              final hasRides = rideDates.isNotEmpty;
+              final lastRideText = hasRides ? _getLastRideText(road['idRoad']) : 'Jamais parcouru';
+
+              return InkWell(
+                onTap: () => _onSuggestionTap(road),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    border: index != _searchSuggestions.length - 1 ? Border(bottom: BorderSide(color: Colors.grey[200]!)) : null,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(Icons.route, color: getColorBasedOnLastRideDate(road['idRoad']), size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              road['name'],
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              lastRideText,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getLastRideText(String roadId) {
+    final List<dynamic> rideDates = ridesBox.get(roadId, defaultValue: []) ?? [];
+    if (rideDates.isEmpty) return 'Jamais parcouru';
+
+    rideDates.sort();
+    final lastRideDate = DateTime.parse(rideDates.last);
+    final daysSince = DateTime.now().difference(lastRideDate).inDays;
+
+    if (daysSince == 0) {
+      return 'Parcouru aujourd\'hui';
+    } else if (daysSince == 1) {
+      return 'Parcouru hier';
+    } else if (daysSince <= 7) {
+      return 'Parcouru il y a $daysSince jours';
+    } else if (daysSince <= 30) {
+      return 'Parcouru il y a ${(daysSince / 7).round()} semaines';
+    } else {
+      return 'Parcouru il y a ${(daysSince / 30).round()} mois';
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          centerTitle: true,
-          title: const Text('Prospect Map'),
-        ),
-        body: SafeArea(
-            child: Stack(
+      body: SafeArea(
+        child: Stack(
           children: [
             FlutterMap(
               mapController: _mapController,
@@ -471,7 +783,7 @@ class HomeState extends State<Home> {
                         point: userLocation!,
                         width: 40,
                         height: 40,
-                        child: Icon(
+                        child: const Icon(
                           Icons.my_location,
                           color: Colors.blue,
                           size: 30,
@@ -483,6 +795,10 @@ class HomeState extends State<Home> {
                 if (_selectedRoadSegments.isNotEmpty) PolylineLayer(polylines: _selectedRoadSegments),
               ],
             ),
+            // Search Bar
+            _buildSearchBar(),
+            // Search Suggestions - positioned below search bar
+            _buildSearchSuggestions(),
             if (_isPanelExpanded)
               Positioned(
                 left: 20,
@@ -497,7 +813,7 @@ class HomeState extends State<Home> {
                       BoxShadow(
                         color: Colors.black26,
                         blurRadius: 4,
-                        offset: Offset(0, 2),
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
@@ -638,6 +954,8 @@ class HomeState extends State<Home> {
             ),
             if (_isLoading) const Center(child: CircularProgressIndicator()),
           ],
-        )));
+        ),
+      ),
+    );
   }
 }
