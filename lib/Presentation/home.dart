@@ -237,7 +237,7 @@ class HomeState extends State<Home> {
         // Only update center for the first location fix
         if (!_hasInitialLocationSet) {
           _center = userLocation!;
-          _mapController.move(_center, 15.0);
+          _mapController.move(_center, 17.0);
           _hasInitialLocationSet = true;
         }
       });
