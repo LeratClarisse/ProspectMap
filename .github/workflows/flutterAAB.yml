@@ -63,35 +63,51 @@ jobs:
       # Generate changelog from commits since last tag
       - name: Generate changelog
         id: changelog
-        uses: mikepenz/release-changelog-builder-action@v5
-        with:
-          mode: "COMMIT"
-          configurationJson: |
-            {
-              "template": "#{{CHANGELOG}}",
-              "categories": [
-                {
-                    "title": "## Features",
-                    "labels": ["feat", "Feat"]
-                },
-                {
-                    "title": "## Fixes", 
-                    "labels": ["fix", "Fix"]
-                }
-              ],
-              "label_extractor": [
-                {
-                  "pattern": "^(feat|fix|Feat|Fix)(!)?:.*",
-                  "on_property": "title",
-                  "target": "$1"
-                }
-              ],
-              "empty_template": ""
-            }
-          fromTag: ${{ github.event.repository.default_branch }}
-          toTag: HEAD
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$LAST_TAG" ]; then
+            echo "No previous tag found, getting all commits"
+            COMMITS=$(git log --pretty=format:"- %s" --no-merges)
+          else
+            echo "Getting commits since $LAST_TAG"
+            COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:"- %s" --no-merges)
+          fi
+          
+          # Process commits and categorize them
+          FEATURES=""
+          FIXES=""
+          
+          while IFS= read -r commit; do
+            if [[ $commit =~ ^(feat|Feat):[[:space:]]*(.*) ]]; then
+              CLEAN_MESSAGE="${BASH_REMATCH[2]}"
+              FEATURES="$FEATURES- $CLEAN_MESSAGE"$'\n'
+            elif [[ $commit =~ ^(fix|Fix):[[:space:]]*(.*) ]]; then
+              CLEAN_MESSAGE="${BASH_REMATCH[2]}"
+              FIXES="$FIXES- $CLEAN_MESSAGE"$'\n'
+            fi
+          done <<< "$COMMITS"
+          CHANGELOG=""
+          if [ ! -z "$FEATURES" ]; then
+            CHANGELOG="$CHANGELOG## 🚀 Features"
+          fi
+          if [ ! -z "$FIXES" ]; then
+            CHANGELOG="$CHANGELOG## 🐛 Bug Fixes"
+          fi
+          if [ -z "$CHANGELOG" ]; then
+          CHANGELOG="## 📝 Changes"
+          fi
+          
+          echo "Generated changelog:"
+          echo "$CHANGELOG"
+          
+          # Save to output (escape newlines for GitHub Actions)
+          {
+            echo "changelog<<EOF"
+            echo "$CHANGELOG"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
 
       # Create GitHub Release with tag and changelog
       - name: Create GitHub Release
