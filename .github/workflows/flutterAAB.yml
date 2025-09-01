@@ -1,13 +1,10 @@
 name: Flutter AAB
-
 on:
   workflow_dispatch:
-
 env:
   JAVA_VERSION: "17"
   FLUTTER_CHANNEL: "stable"
   PROPERTIES_PATH: "./android/key.properties"
-
 jobs:
   flutter_test:
     name: Run Flutter assigned build appbundle
@@ -25,7 +22,6 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: ${{env.FLUTTER_CHANNEL}}
-
       # Creating the key.properties file
       - run: |
           echo keyPassword=${{ secrets.KEY_STORE }} > ${{ env.PROPERTIES_PATH }}
@@ -35,7 +31,6 @@ jobs:
           
       # Decoding base64 key into a file
       - run: echo "${{ secrets.KEYSTORE2 }}" | base64 --decode > android/app/key.jks
-
       # Get current version from pubspec.yaml
       - name: Get version from pubspec.yaml
         id: version
@@ -59,56 +54,40 @@ jobs:
           name: appbundle
           path: |
             build/app/outputs/bundle/release/*.aab
-
       # Generate changelog from commits since last tag
       - name: Generate changelog
         id: changelog
-        run: |
-          # Get the last tag
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          
-          if [ -z "$LAST_TAG" ]; then
-            echo "No previous tag found, getting all commits"
-            COMMITS=$(git log --pretty=format:"- %s" --no-merges)
-          else
-            echo "Getting commits since $LAST_TAG"
-            COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:"- %s" --no-merges)
-          fi
-          
-          # Process commits and categorize them
-          FEATURES=""
-          FIXES=""
-          
-          while IFS= read -r commit; do
-            if [[ $commit =~ ^(feat|Feat):[[:space:]]*(.*) ]]; then
-              CLEAN_MESSAGE="${BASH_REMATCH[2]}"
-              FEATURES="$FEATURES- $CLEAN_MESSAGE"$'\n'
-            elif [[ $commit =~ ^(fix|Fix):[[:space:]]*(.*) ]]; then
-              CLEAN_MESSAGE="${BASH_REMATCH[2]}"
-              FIXES="$FIXES- $CLEAN_MESSAGE"$'\n'
-            fi
-          done <<< "$COMMITS"
-          CHANGELOG=""
-          if [ ! -z "$FEATURES" ]; then
-            CHANGELOG="$CHANGELOG## 🚀 Features"
-          fi
-          if [ ! -z "$FIXES" ]; then
-            CHANGELOG="$CHANGELOG## 🐛 Bug Fixes"
-          fi
-          if [ -z "$CHANGELOG" ]; then
-          CHANGELOG="## 📝 Changes"
-          fi
-          
-          echo "Generated changelog:"
-          echo "$CHANGELOG"
-          
-          # Save to output (escape newlines for GitHub Actions)
-          {
-            echo "changelog<<EOF"
-            echo "$CHANGELOG"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
-
+        uses: mikepenz/release-changelog-builder-action@v5
+        with:
+          configurationJson: |
+            {
+              "template": "#{{CHANGELOG}}",
+              "categories": [
+                {
+                    "title": "## 🚀 Features",
+                    "labels": ["feat", "Feat"]
+                },
+                {
+                    "title": "## 🐛 Bug Fixes", 
+                    "labels": ["fix", "Fix"]
+                }
+              ],
+              "label_extractor": [
+                {
+                  "pattern": "^(feat|Feat|fix|Fix):\\s*(.*)",
+                  "target": "$1"
+                }
+              ],
+              "transformers": [
+                {
+                  "pattern": "^(feat|Feat|fix|Fix):\\s*(.*)",
+                  "target": "$2"
+                }
+              ],
+              "empty_template": "## 📝 Changes\n- Updates and improvements"
+            }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Create GitHub Release with tag and changelog
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2.3.2
