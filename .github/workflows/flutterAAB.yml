@@ -57,37 +57,63 @@ jobs:
       # Generate changelog from commits since last tag
       - name: Generate changelog
         id: changelog
-        uses: mikepenz/release-changelog-builder-action@v5
-        with:
-          configurationJson: |
-            {
-              "template": "#{{CHANGELOG}}",
-              "categories": [
-                {
-                    "title": "## 🚀 Features",
-                    "labels": ["feat", "Feat"]
-                },
-                {
-                    "title": "## 🐛 Bug Fixes", 
-                    "labels": ["fix", "Fix"]
-                }
-              ],
-              "label_extractor": [
-                {
-                  "pattern": "^(feat|Feat|fix|Fix):\\s*(.*)",
-                  "target": "$1"
-                }
-              ],
-              "transformers": [
-                {
-                  "pattern": "^(feat|Feat|fix|Fix):\\s*(.*)",
-                  "target": "$2"
-                }
-              ],
-              "empty_template": "## 📝 Changes\n- Updates and improvements"
-            }
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$LAST_TAG" ]; then
+            echo "No previous tag found, getting all commits"
+            COMMITS=$(git log --pretty=format:"%s" --no-merges)
+          else
+            echo "Getting commits since $LAST_TAG"
+            COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:"%s" --no-merges)
+          fi
+          
+          echo "Processing commits:"
+          echo "$COMMITS"
+          
+          # Process commits and categorize them
+          FEATURES=""
+          FIXES=""
+          
+          while IFS= read -r commit; do
+            echo "Processing: $commit"
+            if [[ $commit =~ ^(feat|Feat):[[:space:]]*(.*) ]]; then
+              CLEAN_MESSAGE="${BASH_REMATCH[2]}"
+              echo "Found feature: $CLEAN_MESSAGE"
+              FEATURES="${FEATURES}- ${CLEAN_MESSAGE}"$'\n'
+            elif [[ $commit =~ ^(fix|Fix):[[:space:]]*(.*) ]]; then
+              CLEAN_MESSAGE="${BASH_REMATCH[2]}"
+              echo "Found fix: $CLEAN_MESSAGE"
+              FIXES="${FIXES}- ${CLEAN_MESSAGE}"$'\n'
+            else
+              echo "Ignoring: $commit"
+            fi
+          done <<< "$COMMITS"
+          
+          # Build changelog
+          CHANGELOG=""
+          if [ -n "$FEATURES" ]; then
+            CHANGELOG="${CHANGELOG}## 🚀 Features"$'\n'"${FEATURES}"$'\n'
+          fi
+          if [ -n "$FIXES" ]; then
+            CHANGELOG="${CHANGELOG}## 🐛 Bug Fixes"$'\n'"${FIXES}"$'\n'
+          fi
+          
+          # If no feat/fix commits found, provide fallback
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="## 📝 Changes"$'\n'"- Updates and improvements"$'\n'
+          fi
+          
+          echo "Generated changelog:"
+          echo "$CHANGELOG"
+          
+          # Save to GitHub output
+          {
+            echo "changelog<<EOF"
+            echo "$CHANGELOG"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
       # Create GitHub Release with tag and changelog
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2.3.2
