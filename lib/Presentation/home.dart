@@ -238,7 +238,7 @@ class HomeState extends State<Home> {
 
       // Move map to user location on first load
       if (!_hasInitialLocationSet) {
-        _mapController.move(_center, 13.0);
+        _mapController.move(_center, 17.0);
         _hasInitialLocationSet = true;
       }
     });
