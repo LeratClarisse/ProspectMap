@@ -78,16 +78,14 @@ class HomeState extends State<Home> {
     if (_searchFocusNode.hasFocus) {
       setState(() {
         _showSuggestions = _searchQuery.isNotEmpty;
+        _isPanelExpanded = false;
       });
     } else {
-      // Delay hiding suggestions to allow tap on suggestions
-      Future.delayed(const Duration(milliseconds: 150), () {
-        if (mounted && !_searchFocusNode.hasFocus) {
-          setState(() {
-            _showSuggestions = false;
-          });
-        }
-      });
+      if (!_searchFocusNode.hasFocus) {
+        setState(() {
+          _showSuggestions = false;
+        });
+      }
     }
   }
 
@@ -123,6 +121,24 @@ class HomeState extends State<Home> {
     });
 
     _searchSuggestions = filtered.take(5).toList(); // Limit to 5 suggestions
+
+    // Sort by last visit date (from recent to old)
+    _searchSuggestions.sort((a, b) {
+      final aRides = ridesBox.get(a['idRoad'], defaultValue: []) ?? [];
+      final bRides = ridesBox.get(b['idRoad'], defaultValue: []) ?? [];
+
+      if (aRides.isEmpty && bRides.isEmpty) return -1;
+      if (aRides.isEmpty) return 1;
+      if (bRides.isEmpty) return -1;
+
+      aRides.sort();
+      final aLastRide = DateTime.parse(aRides.last);
+      bRides.sort();
+      final bLastRide = DateTime.parse(bRides.last);
+
+      return bLastRide.compareTo(aLastRide);
+    });
+
     _showSuggestions = _searchSuggestions.isNotEmpty && _searchFocusNode.hasFocus;
   }
 
@@ -141,6 +157,9 @@ class HomeState extends State<Home> {
         _selectedRoadName = road['name'];
         _selectedRoadId = road['idRoad'];
         _buildSelectedRoadSegments();
+
+        // Display road infos
+        _isPanelExpanded = true;
 
         // Update search UI
         _searchController.text = road['name'];
