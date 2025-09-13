@@ -50,8 +50,7 @@ flutter_native_splash:
 # The following section is specific to Flutter.
 flutter:
   assets:
-    - assets/geojsons/doubs_belfort_hautesaone_roads.geojson
-    - assets/geojsons/doubs_belfort_hautesaone_cities.geojson
+    - assets/geojsons/doubs_belfort_hautesaone_cities_roads_with_cities.geojson
     - assets/icons/logo.png
 
   # The following line ensures that the Material Icons font is

@@ -374,8 +374,8 @@ class HomeState extends State<Home> {
 
     try {
       // GeoJSON file from https://overpass-turbo.eu/
-      final geoJsonString =
-          await DefaultAssetBundle.of(context).loadString('assets/geojsons/doubs_belfort_hautesaone_roads.geojson');
+      final geoJsonString = await DefaultAssetBundle.of(context)
+          .loadString('assets/geojsons/doubs_belfort_hautesaone_cities_roads_with_cities.geojson');
       final geoJson = json.decode(geoJsonString);
 
       Map<String, List<List<Map<String, dynamic>>>> roadGroups = {};
@@ -384,6 +384,7 @@ class HomeState extends State<Home> {
         final geometry = feature['geometry'];
         final properties = feature['properties'];
         final name = properties['name'];
+        final city = properties['city'];
 
         if (geometry['type'] == 'LineString' && name != null) {
           List<LatLng> points = [];
@@ -397,7 +398,7 @@ class HomeState extends State<Home> {
           bool added = false;
           for (var group in roadGroups[name]!) {
             if (_areSegmentsConnected(group, points)) {
-              group.add({'points': points, 'id': properties['@id']});
+              group.add({'points': points, 'id': properties['@id'], 'city': city});
               added = true;
               break;
             }
@@ -405,7 +406,7 @@ class HomeState extends State<Home> {
 
           if (!added) {
             roadGroups[name]!.add([
-              {'points': points, 'id': properties['@id']}
+              {'points': points, 'id': properties['@id'], 'city': city}
             ]);
           }
         }
@@ -416,12 +417,13 @@ class HomeState extends State<Home> {
       roadGroups.forEach((name, groups) {
         for (var group in groups) {
           final idRoad = group[0]['id'];
+          final city = group[0]['city'];
           final segments = group.map((segment) {
             final newSegment = Map.of(segment);
             newSegment.remove("id");
             return newSegment;
           }).toList();
-          consolidatedRoads.add({'name': name, 'segments': segments, 'idRoad': idRoad});
+          consolidatedRoads.add({'name': name, 'segments': segments, 'idRoad': idRoad, 'city': city});
         }
       });
 
@@ -720,6 +722,14 @@ class HomeState extends State<Home> {
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              road['city'],
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
